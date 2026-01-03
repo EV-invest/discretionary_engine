@@ -8,6 +8,7 @@
 [<img alt="ci warnings" src="https://img.shields.io/github/actions/workflow/status/valeratrades/discretionary_engine/warnings.yml?branch=master&style=for-the-badge&style=flat-square&label=warnings&labelColor=d16002" height="20">](https://github.com/valeratrades/discretionary_engine/actions?query=branch%3Amaster) <!--NB: Won't find it if repo is private-->
 
 Places and follows a position from a definition of _what the target position is_
+If the broader architecture is of interest, see [ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
 ## Usage
 Example query:

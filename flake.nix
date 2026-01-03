@@ -3,8 +3,8 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
-    pre-commit-hooks.url = "github:cachix/git-hooks.nix/ca5b894d3e3e151ffc1db040b6ce4dcc75d31c37";
-    v-utils.url = "github:valeratrades/.github?ref=v1.4";
+    pre-commit-hooks.url = "github:cachix/git-hooks.nix";
+    v-utils.url = "github:valeratrades/.github";
   };
 
   outputs = { self, nixpkgs, rust-overlay, flake-utils, pre-commit-hooks, v-utils, ... }:
@@ -37,11 +37,11 @@
           inherit pkgs pname;
           inherit (rs) traceyCheck;
           lastSupportedVersion = "nightly-2025-10-12";
-          langs = [ "rs" ];
           jobs.default = true;
+          langs = [ "rs" ];
           labels.extra = [{ name = "rm"; color = "0000ff"; }];
         };
-        readme = v-utils.readme-fw { inherit pkgs pname; lastSupportedVersion = "nightly-1.92"; rootDir = ./.; licenses = [{ name = "Blue Oak 1.0.0"; outPath = "LICENSE"; }]; badges = [ "msrv" "crates_io" "docs_rs" "loc" "ci" ]; };
+        readme = v-utils.readme-fw { inherit pkgs pname; defaults = true; lastSupportedVersion = "nightly-1.92"; rootDir = ./.; badges = [ "msrv" "crates_io" "docs_rs" "loc" "ci" ]; };
       in
       {
         packages =
@@ -73,12 +73,9 @@
             pre-commit-check.shellHook +
             github.shellHook +
             rs.shellHook +
+            readme.shellHook +
             ''
-              cp -f ${v-utils.files.licenses.blue_oak} ./LICENSE
-
               cp -f ${(v-utils.files.treefmt) {inherit pkgs;}} ./.treefmt.toml
-
-              cp -f ${readme} ./README.md
             '';
 
           env = {

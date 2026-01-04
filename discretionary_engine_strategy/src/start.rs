@@ -12,13 +12,12 @@ use crate::{
 	strategy::PrintTradesStrategy,
 };
 
-/// Start the strategy with Bybit data feed.
+/// Start the strategy with trade data feed.
 pub async fn start() -> Result<()> {
 	// Create channel for trades (the bridge between data layer and strategy)
 	let (trade_tx, trade_rx) = mpsc::unbounded_channel();
 
-	// Initialize exchange-specific data feed
-	// This is the ONLY place where we mention Bybit
+	// we ONLY talk about specifics in DataFeed initialization
 	let config = BybitDataConfig::default();
 	let data_handle = init_data(config, trade_tx).await?;
 

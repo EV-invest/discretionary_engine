@@ -14,7 +14,7 @@ pub const CONSUMER_GROUP: &str = "strategy_consumers";
 
 /// Connect to Redis asynchronously.
 pub async fn connect(port: u16) -> Result<MultiplexedConnection> {
-	let url = format!("redis://127.0.0.1:{}/", port);
+	let url = format!("redis://127.0.0.1:{port}/");
 	let client = Client::open(url.as_str()).wrap_err("Failed to create Redis client")?;
 	let conn = client.get_multiplexed_async_connection().await.wrap_err("Failed to connect to Redis")?;
 	Ok(conn)
@@ -82,13 +82,13 @@ impl CommandSubscriber {
 				for stream_key in reply.keys {
 					for entry in stream_key.ids {
 						let id = entry.id.clone();
-						if let Some(cmd) = entry.map.get("cmd") {
-							if let redis::Value::BulkString(bytes) = cmd {
-								let cmd_str = String::from_utf8_lossy(bytes).to_string();
-								// Acknowledge the message
-								let _: () = self.conn.xack(STREAM_KEY, CONSUMER_GROUP, &[&id]).await?;
-								return Ok(Some((id, cmd_str)));
-							}
+						if let Some(cmd) = entry.map.get("cmd")
+							&& let redis::Value::BulkString(bytes) = cmd
+						{
+							let cmd_str = String::from_utf8_lossy(bytes).to_string();
+							// Acknowledge the message
+							let _: () = self.conn.xack(STREAM_KEY, CONSUMER_GROUP, &[&id]).await?;
+							return Ok(Some((id, cmd_str)));
 						}
 					}
 				}

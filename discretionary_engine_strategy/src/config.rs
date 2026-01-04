@@ -1,5 +1,3 @@
-//! Strategy configuration.
-
 use v_utils::macros as v_macros;
 
 fn __default_redis_port() -> u16 {

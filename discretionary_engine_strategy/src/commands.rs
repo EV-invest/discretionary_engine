@@ -10,8 +10,7 @@ use crate::{protocols::interpret_protocol_specs, redis_bus};
 pub struct SubmitArgs {
 	pub size_usdt: f64,
 	pub coin: String,
-	pub acquisition_protocols: Vec<String>,
-	pub followup_protocols: Vec<String>,
+	pub protocols: Vec<String>,
 	pub testnet: bool,
 }
 
@@ -27,10 +26,7 @@ fn build_cli_string(args: &SubmitArgs) -> String {
 	parts.push(format!("-s {}", args.size_usdt));
 	parts.push(format!("-c {}", args.coin));
 
-	for proto in &args.acquisition_protocols {
-		parts.push(format!("-a {}", proto));
-	}
-	for proto in &args.followup_protocols {
+	for proto in &args.protocols {
 		parts.push(format!("-f {}", proto));
 	}
 
@@ -40,8 +36,7 @@ fn build_cli_string(args: &SubmitArgs) -> String {
 /// Submit a position request via Redis.
 pub async fn submit(args: SubmitArgs, redis_port: u16) -> Result<()> {
 	// Validate protocols first
-	let _acquisition_protocols = interpret_protocol_specs(args.acquisition_protocols.clone()).wrap_err("Invalid acquisition protocols")?;
-	let _followup_protocols = interpret_protocol_specs(args.followup_protocols.clone()).wrap_err("Invalid followup protocols")?;
+	let _protocols = interpret_protocol_specs(args.protocols.clone()).wrap_err("Invalid acquisition protocols")?;
 
 	// Build CLI string and publish to Redis
 	let cli_string = build_cli_string(&args);

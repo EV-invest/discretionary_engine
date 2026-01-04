@@ -20,6 +20,7 @@ tabs_in_doc_comments = "allow"
 [workspace.dependencies]
 clap = { version = "^4.5.53", features = ["derive", "env"] }
 color-eyre = "^0.6.5"
+derive_more = { version = "^2.1.1", features = ["from_str", "display", "from", "deref", "deref_mut"] }
 insta = { version = "1.45.0", features = ["json"] }
 jiff = "^0.2.17"
 secrecy = { version = "0.10.3", features = ["serde"] }
@@ -31,6 +32,7 @@ tracing = { version = "^0.1.44", features = ["log", "std", "async-await"] }
 v_exchanges = { version = "^0.16.7", features = ["full"] }
 v_utils = { version = "2.15.11", features = ["full"] }
 
+#dbg: \
 [patch.crates-io]
 v_exchanges = { path = "../v_exchanges/v_exchanges" }
 v_exchanges_adapters = { path = "../v_exchanges/v_exchanges_adapters" }

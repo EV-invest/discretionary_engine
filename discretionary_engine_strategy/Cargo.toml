@@ -17,16 +17,17 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 clap = { workspace = true }
 color-eyre = { workspace = true }
 derive-new = "0.7"
+derive_more.workspace = true
 discretionary_engine_macros = { path = "../discretionary_engine_macros" }
 eyre = "0.6"
 futures-util = "0.3.31"
 nautilus-bybit = { path = "../libs/nautilus_trader/crates/adapters/bybit", default-features = false }
 nautilus-model = { path = "../libs/nautilus_trader/crates/model" }
-redis = { version = "0.27", features = ["tokio-comp", "streams"] }
+redis = { version = "^1.0", features = ["tokio-comp", "streams"] }
 serde = { workspace = true }
-tokio = { version = "^1.48.0", features = ["full", "signal"] }
+tokio = { version = "^1.49.0", features = ["full", "signal"] }
 tracing = { workspace = true }
-tracing-subscriber = { version = "^0.3.20", features = ["fmt", "env-filter"] }
+tracing-subscriber = { version = "^0.3.22", features = ["fmt", "env-filter"] }
 v_exchanges = { workspace = true }
 v_utils = { workspace = true }
 

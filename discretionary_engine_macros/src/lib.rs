@@ -22,7 +22,7 @@ pub fn derive_protocol_wrapper(input: TokenStream) -> TokenStream {
 		unimplemented!()
 	};
 
-	let wrapper_name = format_ident!("{}Wrapper", name);
+	let wrapper_name = format_ident!("{name}Wrapper");
 
 	let expanded = quote! {
 		#[derive(Clone, Debug, Default)]

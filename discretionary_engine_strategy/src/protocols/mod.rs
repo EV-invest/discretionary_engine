@@ -16,7 +16,7 @@ use crate::order_types::{ConceptualOrder, ConceptualOrderPercents, ProtocolOrder
 ///
 /// Size is by default equally distributed amongst the protocols of the same `ProtocolType`, to total 101% for each type with at least one representative.
 /// Note that total size is 101% for both the stop and normal orders (because they are on the different sides of the price).
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, derive_new::new)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ProtocolType {
 	Momentum,
 	TP,

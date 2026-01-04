@@ -6,7 +6,7 @@ use tokio::{sync::mpsc, task::JoinSet};
 use v_exchanges::core::{Instrument, Symbol};
 use v_utils::{
 	Percent,
-	macros::CompactFormat,
+	macros::CompactFormatNamed,
 	trades::{Pair, Side},
 };
 
@@ -14,7 +14,7 @@ use super::{ProtocolOrders, ProtocolTrait, ProtocolType};
 use crate::order_types::{ConceptualMarket, ConceptualOrderPercents, ConceptualOrderType};
 
 /// Literally just sends one market order.
-#[derive(Clone, CompactFormat, Debug, Default, ProtocolWrapper, derive_new::new)]
+#[derive(Clone, CompactFormatNamed, Debug, Default, ProtocolWrapper, derive_new::new)]
 pub struct DummyMarket {}
 
 impl ProtocolTrait for DummyMarketWrapper {

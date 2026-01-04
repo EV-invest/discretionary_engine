@@ -21,7 +21,7 @@ color-eyre = { workspace = true }
 config = "0.15.19"
 console-subscriber = "0.5.0"
 derive-new = "0.7.0"
-derive_more = { version = "2.0.1", features = ["from_str", "display"] }
+derive_more = { workspace = true }
 dirs = "6.0"
 discretionary_engine_macros = { path = "../discretionary_engine_macros", version = "^0.1.1" }
 discretionary_engine_risk = { path = "../discretionary_engine_risk", version = "1.0.0" }

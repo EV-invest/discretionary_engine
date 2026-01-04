@@ -32,11 +32,12 @@ pub trait ProtocolTrait {
 	type Params;
 	/// Requested orders are being sent over the mspc with uuid of the protocol on each batch, as we want to replace the previous requested batch if any.
 	fn attach(&self, set: &mut JoinSet<Result<()>>, tx_orders: mpsc::Sender<ProtocolOrders>, asset: String, protocol_side: Side) -> Result<()>;
-	fn update_params(&self, params: Self::Params) -> Result<()>;
+	fn set_params(&self, params: Self::Params) -> Result<()>;
 	fn get_type(&self) -> ProtocolType;
 }
 
 // HACK: Protocol enum. Seems suboptimal {\{{
+//TODO!!!!!: pretty sure we can just make a dyn trait. Might need to use `dyno` crate or sth.
 #[derive(Clone, Debug)]
 pub enum Protocol {
 	TrailingStop(TrailingStopWrapper),
@@ -54,18 +55,18 @@ impl Protocol {
 		}
 	}
 
-	pub fn update_params(&self, params: ProtocolParams) -> Result<()> {
+	pub fn set_params(&self, params: ProtocolParams) -> Result<()> {
 		match self {
 			Protocol::TrailingStop(ts) => match params {
-				ProtocolParams::TrailingStop(ts_params) => ts.update_params(ts_params),
+				ProtocolParams::TrailingStop(ts_params) => ts.set_params(ts_params),
 				_ => Err(eyre::Report::msg("Mismatched params")),
 			},
 			Protocol::Sar(sar) => match params {
-				ProtocolParams::Sar(sar_params) => sar.update_params(sar_params),
+				ProtocolParams::Sar(sar_params) => sar.set_params(sar_params),
 				_ => Err(eyre::Report::msg("Mismatched params")),
 			},
 			Protocol::ApproachingLimit(al) => match params {
-				ProtocolParams::ApproachingLimit(al_params) => al.update_params(al_params),
+				ProtocolParams::ApproachingLimit(al_params) => al.set_params(al_params),
 				_ => Err(eyre::Report::msg("Mismatched params")),
 			},
 			Protocol::DummyMarket(_) => Ok(()),

@@ -67,7 +67,7 @@ impl ProtocolTrait for TrailingStopWrapper {
 		Ok(())
 	}
 
-	fn update_params(&self, new_params: TrailingStop) -> Result<()> {
+	fn set_params(&self, new_params: TrailingStop) -> Result<()> {
 		*self.0.write().unwrap() = new_params;
 		Ok(())
 	}

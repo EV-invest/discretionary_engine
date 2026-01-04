@@ -98,7 +98,7 @@ impl ProtocolTrait for SarWrapper {
 		Ok(())
 	}
 
-	fn update_params(&self, new_params: Sar) -> Result<()> {
+	fn set_params(&self, new_params: Sar) -> Result<()> {
 		*self.0.write().unwrap() = new_params;
 		Ok(())
 	}

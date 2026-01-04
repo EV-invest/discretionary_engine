@@ -28,7 +28,7 @@ pub trait ProtocolTrait {
 	type Params;
 	/// Requested orders are being sent over the mspc with uuid of the protocol on each batch, as we want to replace the previous requested batch if any.
 	fn attach(&self, set: &mut JoinSet<Result<()>>, tx_orders: mpsc::Sender<ProtocolOrders>, asset: String, protocol_side: Side) -> Result<()>;
-	fn update_params(&self, params: Self::Params) -> Result<()>;
+	fn set_params(&self, params: Self::Params) -> Result<()>;
 	fn get_type(&self) -> ProtocolType;
 }
 

@@ -69,7 +69,7 @@ impl ProtocolTrait for ApproachingLimitWrapper {
 		Ok(())
 	}
 
-	fn update_params(&self, new_params: ApproachingLimit) -> Result<()> {
+	fn set_params(&self, new_params: ApproachingLimit) -> Result<()> {
 		*self.0.write().unwrap() = new_params;
 		Ok(())
 	}

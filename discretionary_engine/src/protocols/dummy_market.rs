@@ -40,7 +40,7 @@ impl ProtocolTrait for DummyMarketWrapper {
 		Ok(())
 	}
 
-	fn update_params(&self, _params: Self::Params) -> Result<()> {
+	fn set_params(&self, _params: Self::Params) -> Result<()> {
 		unimplemented!()
 	}
 

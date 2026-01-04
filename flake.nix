@@ -26,6 +26,7 @@
           inherit pkgs;
           cranelift = false; # cranelift disabled due to aws-lc-rs incompatibility
           tracey = true;
+          nuke_snaps = true;
           build = {
             enable = true;
             workspace = {

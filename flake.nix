@@ -23,10 +23,9 @@
         stdenv = pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv;
 
         rs = v-utils.rs {
-          inherit pkgs;
+          inherit pkgs rust;
           cranelift = false; # cranelift disabled due to aws-lc-rs incompatibility
           tracey = true;
-          nuke_snaps = true;
           build = {
             enable = true;
             workspace = {

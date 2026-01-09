@@ -67,7 +67,7 @@ impl ProtocolTrait for SarWrapper {
 								tx.send(Ohlc { open, high, low, close }).await.unwrap();
 							},
 						Err(e) => {
-							println!("Failed to parse message as JSON: {}", e);
+							println!("Failed to parse message as JSON: {e}");
 						}
 					}
 				}

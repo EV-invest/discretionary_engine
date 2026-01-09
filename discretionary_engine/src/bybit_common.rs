@@ -97,7 +97,7 @@ impl BybitAmendClient {
 		let param_str = serde_json::to_string(&params)?;
 
 		// Bybit signature: timestamp + api_key + recv_window + param_str
-		let sign_str = format!("{}{}{}{}", timestamp, self.api_key, recv_window, param_str);
+		let sign_str = format!("{timestamp}{}{recv_window}{param_str}", self.api_key);
 
 		let mut mac = Hmac::<Sha256>::new_from_slice(self.api_secret.as_bytes()).map_err(|e| color_eyre::eyre::eyre!("Invalid secret key: {}", e))?;
 		mac.update(sign_str.as_bytes());
@@ -139,7 +139,7 @@ impl BybitAmendClient {
 		let param_str = serde_json::to_string(&params)?;
 
 		// Bybit signature: timestamp + api_key + recv_window + param_str
-		let sign_str = format!("{}{}{}{}", timestamp, self.api_key, recv_window, param_str);
+		let sign_str = format!("{timestamp}{}{recv_window}{param_str}", self.api_key);
 
 		let mut mac = Hmac::<Sha256>::new_from_slice(self.api_secret.as_bytes()).map_err(|e| color_eyre::eyre::eyre!("Invalid secret key: {}", e))?;
 		mac.update(sign_str.as_bytes());

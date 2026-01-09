@@ -131,7 +131,7 @@ async fn main() -> Result<()> {
 	let live_settings = match LiveSettings::new(cli.settings, Duration::from_secs(5)) {
 		Ok(ls) => Arc::new(ls),
 		Err(e) => {
-			eprintln!("Loading config failed: {}", e);
+			eprintln!("Loading config failed: {e}");
 			std::process::exit(1);
 		}
 	};
@@ -199,12 +199,12 @@ async fn command_new(position_args: PositionArgs, live_settings: Arc<LiveSetting
 	let balance = match Exchanges::compile_total_balance(exchanges_arc.clone(), live_settings.clone()).await {
 		Ok(b) => b,
 		Err(e) => {
-			eprintln!("Failed to get balance: {}", e);
+			eprintln!("Failed to get balance: {e}");
 			std::process::exit(1);
 		}
 	};
-	info!("Total balance: {}", balance);
-	println!("Current total available balance: {}", balance);
+	info!("Total balance: {balance}");
+	println!("Current total available balance: {balance}");
 
 	let (side, target_size) = match position_args.size_usdt {
 		s if s > 0.0 => (Side::Buy, s),

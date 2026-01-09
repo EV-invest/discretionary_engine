@@ -46,7 +46,7 @@ impl ProtocolTrait for ApproachingLimitWrapper {
 								tx.send(price).await.unwrap();
 							},
 						Err(e) => {
-							println!("Failed to parse message as JSON: {}", e);
+							println!("Failed to parse message as JSON: {e}");
 						}
 					}
 				}

@@ -32,10 +32,14 @@
               "./discretionary_engine" = [ "git_version" "log_directives" ];
             };
           };
+          style = {
+            modules = {
+              no_chrono = "false"; #dbg: used in code that's to be deprecated anyways
+            };
+          };
         };
         github = v-utils.github {
-          inherit pkgs pname;
-          inherit (rs) traceyCheck;
+          inherit pkgs pname rs;
           lastSupportedVersion = "nightly-2025-10-12";
           jobs.default = true;
           langs = [ "rs" ];

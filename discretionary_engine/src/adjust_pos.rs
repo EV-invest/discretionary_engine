@@ -112,7 +112,7 @@ pub(crate) async fn main(args: AdjustPosArgs, live_settings: Arc<LiveSettings>, 
 	// Get current ticker price first
 	let symbol_raw = args.ticker.symbol.to_string();
 	let symbol = convert_symbol_to_bybit(&symbol_raw);
-	info!("Fetching current price for {} (converted from {})", symbol, symbol_raw);
+	info!("Fetching current price for {symbol} (converted from {symbol_raw})");
 
 	let ticker_params = BybitTickersParamsBuilder::default()
 		.category(BybitProductType::Linear)
@@ -128,7 +128,7 @@ pub(crate) async fn main(args: AdjustPosArgs, live_settings: Arc<LiveSettings>, 
 	let ticker = ticker_response.result.list.get(0).ok_or_else(|| color_eyre::eyre::eyre!("No ticker data found for {}", symbol))?;
 
 	let current_price: f64 = ticker.last_price.parse().context("Failed to parse price as float")?;
-	info!("Current price: ${}", current_price);
+	info!("Current price: ${current_price}");
 
 	// Fetch instrument info to get lot size filter
 	let instruments_params = BybitInstrumentsInfoParamsBuilder::default()
@@ -156,10 +156,7 @@ pub(crate) async fn main(args: AdjustPosArgs, live_settings: Arc<LiveSettings>, 
 	let price_filter = &instrument.price_filter;
 	let tick_size: f64 = price_filter.tick_size.parse().context("Failed to parse tickSize")?;
 
-	info!(
-		"Instrument info - qtyStep: {}, tickSize: {}, minOrderQty: {}, maxOrderQty: {}",
-		qty_step, tick_size, min_order_qty, max_order_qty
-	);
+	info!("Instrument info - qtyStep: {qty_step}, tickSize: {tick_size}, minOrderQty: {min_order_qty}, maxOrderQty: {max_order_qty}");
 
 	// Calculate quantity based on size type, extracting sign for order side
 	let (raw_quantity, side) = match size_type {
@@ -196,7 +193,7 @@ pub(crate) async fn main(args: AdjustPosArgs, live_settings: Arc<LiveSettings>, 
 
 		// Create InstrumentId for ticker subscription
 		// Format: "SYMBOL.VENUE" e.g., "BTCUSDT.BYBIT"
-		let instrument_id = InstrumentId::from(format!("{}.BYBIT", symbol).as_str());
+		let instrument_id = InstrumentId::from(format!("{symbol}.BYBIT").as_str());
 
 		let filled_qty = crate::ws_chase_limit::execute_ws_chase_limit(
 			&raw_client, api_key, api_secret, environment, &symbol, instrument_id, side, quantity, qty_step, tick_size, args.duration,
@@ -217,7 +214,7 @@ pub(crate) async fn main(args: AdjustPosArgs, live_settings: Arc<LiveSettings>, 
 		} else if qty_step >= 0.01 {
 			format!("{:.2}", quantity)
 		} else {
-			format!("{}", quantity)
+			format!("{quantity}")
 		};
 
 		// Prepare order request
@@ -232,7 +229,7 @@ pub(crate) async fn main(args: AdjustPosArgs, live_settings: Arc<LiveSettings>, 
 			"reduceOnly": args.reduce,
 		});
 
-		info!("Submitting market {} order for {} {}", side, quantity, symbol);
+		info!("Submitting market {side} order for {quantity} {symbol}");
 
 		// Submit order
 		let order_response = client.place_order(&order_request).await.context("Failed to place order")?;
@@ -241,7 +238,7 @@ pub(crate) async fn main(args: AdjustPosArgs, live_settings: Arc<LiveSettings>, 
 			println!("✅ Order submitted successfully!");
 			info!("Order submitted successfully!");
 			if let Some(order_id) = order_response.result.order_id {
-				println!("   Order ID: {}", order_id);
+				println!("   Order ID: {order_id}");
 			}
 			println!("   Quantity: {} {} (notional: ${:.2})", qty_str, symbol, actual_notional);
 			Ok(())

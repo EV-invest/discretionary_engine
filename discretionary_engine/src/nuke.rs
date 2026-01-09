@@ -46,7 +46,7 @@ pub(crate) async fn main(args: NukeArgs, live_settings: Arc<LiveSettings>, testn
 		let position_response = client.get_positions(&params).await.context("Failed to fetch positions")?;
 
 		if position_response.result.list.is_empty() {
-			log!("No position to close for {}", symbol);
+			log!("No position to close for {symbol}");
 			return Ok(());
 		}
 
@@ -54,7 +54,7 @@ pub(crate) async fn main(args: NukeArgs, live_settings: Arc<LiveSettings>, testn
 		let position_size: f64 = position.size.parse().context("Failed to parse position size")?;
 
 		if position_size == 0.0 {
-			log!("No position to close for {}", symbol);
+			log!("No position to close for {symbol}");
 			return Ok(());
 		}
 
@@ -96,7 +96,7 @@ pub(crate) async fn main(args: NukeArgs, live_settings: Arc<LiveSettings>, testn
 		let environment = if testnet { BybitEnvironment::Testnet } else { BybitEnvironment::Mainnet };
 
 		// Create InstrumentId for ticker subscription
-		let instrument_id = InstrumentId::from(format!("{}.BYBIT", symbol).as_str());
+		let instrument_id = InstrumentId::from(format!("{symbol}.BYBIT").as_str());
 
 		// Execute using WebSocket chase-limit
 		let filled_qty = crate::ws_chase_limit::execute_ws_chase_limit(
@@ -122,7 +122,7 @@ pub(crate) async fn main(args: NukeArgs, live_settings: Arc<LiveSettings>, testn
 		let position_response = client.get_positions(&params).await.context("Failed to fetch positions")?;
 
 		if position_response.result.list.is_empty() {
-			log!("No position to close for {}", symbol);
+			log!("No position to close for {symbol}");
 			return Ok(());
 		}
 
@@ -130,7 +130,7 @@ pub(crate) async fn main(args: NukeArgs, live_settings: Arc<LiveSettings>, testn
 		let position_size: f64 = position.size.parse().context("Failed to parse position size")?;
 
 		if position_size == 0.0 {
-			log!("No position to close for {}", symbol);
+			log!("No position to close for {symbol}");
 			return Ok(());
 		}
 
@@ -151,16 +151,16 @@ pub(crate) async fn main(args: NukeArgs, live_settings: Arc<LiveSettings>, testn
 			"reduceOnly": true,
 		});
 
-		log!("Submitting market {} order to close {} {}", order_side, position_size, symbol);
+		log!("Submitting market {order_side} order to close {position_size} {symbol}");
 
 		let order_response = client.place_order(&order_request).await.context("Failed to place order")?;
 
 		if order_response.ret_code == 0 {
 			println!("✅ Position closed successfully!");
 			if let Some(order_id) = order_response.result.order_id {
-				println!("   Order ID: {}", order_id);
+				println!("   Order ID: {order_id}");
 			}
-			println!("   Closed: {} {}", position_size, symbol);
+			println!("   Closed: {position_size} {symbol}");
 			Ok(())
 		} else {
 			bail!("Order failed: {} (code: {})", order_response.ret_msg, order_response.ret_code);

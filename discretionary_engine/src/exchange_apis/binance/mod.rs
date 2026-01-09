@@ -108,7 +108,7 @@ pub async fn signed_request<S: AsRef<str>>(http_method: reqwest::Method, endpoin
 
 	for attempt in 0..max_retries {
 		let time_ms = Utc::now().timestamp_millis();
-		params.insert("timestamp", format!("{}", time_ms));
+		params.insert("timestamp", format!("{time_ms}"));
 
 		let query_string = serde_urlencoded::to_string(&params)?;
 
@@ -117,7 +117,7 @@ pub async fn signed_request<S: AsRef<str>>(http_method: reqwest::Method, endpoin
 		let mac_bytes = mac.finalize().into_bytes();
 		let signature = hex::encode(mac_bytes);
 
-		let url = format!("{}?{}&signature={}", endpoint_str, query_string, signature);
+		let url = format!("{endpoint_str}?{query_string}&signature={signature}");
 		let r = client.request(http_method.clone(), &url).send().await?;
 
 		if r.status().is_success() {

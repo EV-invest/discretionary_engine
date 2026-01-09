@@ -83,7 +83,7 @@ pub async fn execute_ws_chase_limit(
 	price_tick: f64,
 	duration: Option<Timeframe>,
 ) -> Result<f64> {
-	log!("Starting WebSocket chase-limit execution for {} {} {}", side, target_qty, symbol);
+	log!("Starting WebSocket chase-limit execution for {side} {target_qty} {symbol}");
 
 	// Create identifiers for nautilus order management
 	let trader_id = TraderId::from("DISC_ENGINE-001");
@@ -108,7 +108,7 @@ pub async fn execute_ws_chase_limit(
 	let initial_bid: f64 = ticker.bid1_price.parse().context("Failed to parse bid price")?;
 	let initial_ask: f64 = ticker.ask1_price.parse().context("Failed to parse ask price")?;
 
-	log!("Initial market: bid={}, ask={}", initial_bid, initial_ask);
+	log!("Initial market: bid={initial_bid}, ask={initial_ask}");
 
 	// Calculate execution parameters based on duration
 	let (update_interval, end_time) = if let Some(duration_tf) = duration {
@@ -159,7 +159,7 @@ pub async fn execute_ws_chase_limit(
 	}
 
 	// Subscribe to ticker for bid/ask updates
-	log!("Subscribing to ticker for {}...", instrument_id);
+	log!("Subscribing to ticker for {instrument_id}...");
 	match market_client.subscribe_ticker(instrument_id).await {
 		Ok(()) => log!("Successfully subscribed to ticker"),
 		Err(e) => {
@@ -196,12 +196,12 @@ pub async fn execute_ws_chase_limit(
 		_ => bail!("Invalid side: {}", side),
 	};
 
-	log!("Calculated initial limit price: {} (bid={}, ask={})", initial_limit_price, initial_bid, initial_ask);
+	log!("Calculated initial limit price: {initial_limit_price} (bid={initial_bid}, ask={initial_ask})");
 
 	// Place initial order immediately
 	// Note: order_link_id must be <= 45 chars. UUID is 32 hex chars (without hyphens), so "c-{}" = 34 chars
 	let short_uuid = uuid::Uuid::new_v4().simple().to_string();
-	let order_link_id = format!("c-{}", short_uuid);
+	let order_link_id = format!("c-{short_uuid}");
 	let client_order_id = ClientOrderId::from(order_link_id.as_str());
 	let bybit_side = match side {
 		"Buy" => BybitOrderSide::Buy,
@@ -238,7 +238,7 @@ pub async fn execute_ws_chase_limit(
 		tp_limit_price: None,
 	};
 
-	log!("Placing initial order: {} {} @ {}", side, target_qty, initial_limit_price);
+	log!("Placing initial order: {side} {target_qty} @ {initial_limit_price}");
 	match trade_client.place_order(initial_order, client_order_id, trader_id, strategy_id, instrument_id).await {
 		Ok(()) => log!("Initial order request sent successfully"),
 		Err(e) => {
@@ -258,12 +258,13 @@ pub async fn execute_ws_chase_limit(
 	log!("trade_client subscription_count: {}", trade_client.subscription_count());
 	log!("market_client subscription_count: {}", market_client.subscription_count());
 
+	//LOOP: very hacky bad old implementation. Will be deprecated in favor of proper implementation through protocol primitives
 	loop {
 		iteration += 1;
 
 		// Log every iteration for debugging
 		if iteration <= 5 || iteration % 10 == 0 {
-			log!("[{}] Polling streams... order_placed={}", iteration, order_placed);
+			log!("[{iteration}] Polling streams... order_placed={order_placed}");
 		}
 
 		// Check if duration has expired
@@ -285,14 +286,14 @@ pub async fn execute_ws_chase_limit(
 						.await
 					{
 						Ok(()) => log!("Cancelled existing order"),
-						Err(e) => log!("Failed to cancel order (may already be filled): {}", e),
+						Err(e) => log!("Failed to cancel order (may already be filled): {e}"),
 					}
 				}
 
 				// Place market order for remaining quantity
 				let remaining_qty = target_qty - filled_qty;
 				if remaining_qty > 0.0 {
-					let final_order_link_id = format!("{}-final", order_link_id);
+					let final_order_link_id = format!("{order_link_id}-final");
 					let final_client_order_id = ClientOrderId::from(final_order_link_id.as_str());
 					let market_params = BybitWsPlaceOrderParams {
 						category: BybitProductType::Linear,
@@ -324,8 +325,8 @@ pub async fn execute_ws_chase_limit(
 					};
 
 					match trade_client.place_order(market_params, final_client_order_id, trader_id, strategy_id, instrument_id).await {
-						Ok(()) => log!("Final market order placed for {}", remaining_qty),
-						Err(e) => log!("Failed to place final market order: {}", e),
+						Ok(()) => log!("Final market order placed for {remaining_qty}"),
+						Err(e) => log!("Failed to place final market order: {e}"),
 					}
 
 					// Wait for final market order fill before exiting
@@ -607,6 +608,6 @@ pub async fn execute_ws_chase_limit(
 	// Suppress unused variable warning
 	let _ = current_order_price;
 
-	log!("Chase-limit execution completed: filled {} out of {}", filled_qty, target_qty);
+	log!("Chase-limit execution completed: filled {filled_qty} out of {target_qty}");
 	Ok(filled_qty)
 }

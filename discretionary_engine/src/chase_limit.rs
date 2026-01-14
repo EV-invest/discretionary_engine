@@ -41,7 +41,7 @@ pub async fn execute_chase_limit(
 		let total_duration_ms = duration_tf.0;
 		let update_interval_ms = 1000; // Check/update every 1 second
 		let end_time = std::time::Instant::now() + Duration::from_millis(total_duration_ms);
-		log!("Patient execution over {:?}: update_interval={}ms", duration_tf, update_interval_ms);
+		log!("Patient execution over {duration_tf:?}: update_interval={update_interval_ms}ms");
 		(Duration::from_millis(update_interval_ms), Some(end_time))
 	} else {
 		// Aggressive execution: update quickly
@@ -111,7 +111,7 @@ pub async fn execute_chase_limit(
 			.await
 			.context("Failed to fetch ticker data")?;
 
-		let ticker = ticker_response.result.list.get(0).ok_or_else(|| color_eyre::eyre::eyre!("No ticker data found for {}", symbol))?;
+		let ticker = ticker_response.result.list.get(0).ok_or_else(|| color_eyre::eyre::eyre!("No ticker data found for {symbol}"))?;
 
 		let bid_price: f64 = ticker.bid1_price.parse().context("Failed to parse bid price")?;
 		let ask_price: f64 = ticker.ask1_price.parse().context("Failed to parse ask price")?;
@@ -130,7 +130,7 @@ pub async fn execute_chase_limit(
 				// Don't cross the spread
 				if improved_price <= bid_price { ask_price } else { improved_price }
 			}
-			_ => bail!("Invalid side: {}", side),
+			_ => bail!("Invalid side: {side}"),
 		};
 
 		info!("[{iteration}] Market: bid={bid_price}, ask={ask_price}, target {side} limit @ {limit_price}");

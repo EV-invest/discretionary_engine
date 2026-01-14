@@ -88,12 +88,12 @@ pub async fn size_main(live_settings: Arc<LiveSettings>, args: SizeArgs) -> Resu
 	let abs_max_risk = size_config.abs_max_risk;
 
 	// Log risk tiers for reference
-	let tier_strs: Vec<String> = RiskTier::non_test_tiers().map(|t| format!("{:?}={}", t, t.risk_percent(abs_max_risk))).collect();
+	let tier_strs: Vec<String> = RiskTier::non_test_tiers().map(|t| format!("{t:?}={}", t.risk_percent(abs_max_risk))).collect();
 	log!("Risk tiers: {}, T=min", tier_strs.join(", "));
 
 	let suggested_tier: RiskTier = args.quality.into();
 	let base_risk = suggested_tier.risk_percent(abs_max_risk);
-	log!("Suggested quality {:?} -> base risk {}", args.quality, base_risk);
+	log!("Suggested quality {:?} -> base risk {base_risk}", args.quality);
 
 	// Build and apply risk layers based on config
 	let risk_layers_config = size_config.risk_layers.as_ref();

@@ -105,7 +105,7 @@ fn deser_reqwest_core<T: DeserializeOwned>(text: String) -> Result<T> {
 //TODO!: print the list of "contributors" to the failure
 pub async fn report_connection_problem(e: Report) -> bool {
 	let failures = MUT_CURRENT_CONNECTION_FAILURES.fetch_add(1, Ordering::Relaxed);
-	warn!("Likely connection problem: {:?}", e);
+	warn!("Likely connection problem: {e:?}");
 
 	if failures + 1 >= MAX_CONNECTION_FAILURES {
 		error!("Reached max current connection failures ({MAX_CONNECTION_FAILURES})");

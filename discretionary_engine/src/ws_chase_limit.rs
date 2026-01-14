@@ -103,7 +103,7 @@ pub async fn execute_ws_chase_limit(
 		.await
 		.context("Failed to fetch initial ticker data")?;
 
-	let ticker = ticker_response.result.list.get(0).ok_or_else(|| color_eyre::eyre::eyre!("No ticker data found for {}", symbol))?;
+	let ticker = ticker_response.result.list.get(0).ok_or_else(|| color_eyre::eyre::eyre!("No ticker data found for {symbol}"))?;
 
 	let initial_bid: f64 = ticker.bid1_price.parse().context("Failed to parse bid price")?;
 	let initial_ask: f64 = ticker.ask1_price.parse().context("Failed to parse ask price")?;
@@ -115,7 +115,7 @@ pub async fn execute_ws_chase_limit(
 		let total_duration_ms = duration_tf.0;
 		let update_interval_ms = 1000; // Check/update every 1 second
 		let end_time = std::time::Instant::now() + Duration::from_millis(total_duration_ms);
-		log!("Patient execution over {:?}: update_interval={}ms", duration_tf, update_interval_ms);
+		log!("Patient execution over {duration_tf:?}: update_interval={update_interval_ms}ms");
 		(Duration::from_millis(update_interval_ms), Some(end_time))
 	} else {
 		// Aggressive execution: update quickly
@@ -153,8 +153,8 @@ pub async fn execute_ws_chase_limit(
 	match trade_client.subscribe_orders().await {
 		Ok(()) => log!("Successfully subscribed to order events"),
 		Err(e) => {
-			log!("Failed to subscribe to orders: {:?}", e);
-			bail!("Failed to subscribe to order events - this usually means invalid API credentials: {}", e);
+			log!("Failed to subscribe to orders: {e:?}");
+			bail!("Failed to subscribe to order events - this usually means invalid API credentials: {e}");
 		}
 	}
 
@@ -163,8 +163,8 @@ pub async fn execute_ws_chase_limit(
 	match market_client.subscribe_ticker(instrument_id).await {
 		Ok(()) => log!("Successfully subscribed to ticker"),
 		Err(e) => {
-			log!("Failed to subscribe to ticker: {:?}", e);
-			bail!("Failed to subscribe to ticker: {}", e);
+			log!("Failed to subscribe to ticker: {e:?}");
+			bail!("Failed to subscribe to ticker: {e}");
 		}
 	}
 
@@ -193,7 +193,7 @@ pub async fn execute_ws_chase_limit(
 			let improved_price = initial_ask - price_tick;
 			if improved_price <= initial_bid { initial_ask } else { improved_price }
 		}
-		_ => bail!("Invalid side: {}", side),
+		_ => bail!("Invalid side: {side}"),
 	};
 
 	log!("Calculated initial limit price: {initial_limit_price} (bid={initial_bid}, ask={initial_ask})");
@@ -206,7 +206,7 @@ pub async fn execute_ws_chase_limit(
 	let bybit_side = match side {
 		"Buy" => BybitOrderSide::Buy,
 		"Sell" => BybitOrderSide::Sell,
-		_ => bail!("Invalid side: {}", side),
+		_ => bail!("Invalid side: {side}"),
 	};
 
 	let initial_order = BybitWsPlaceOrderParams {
@@ -242,8 +242,8 @@ pub async fn execute_ws_chase_limit(
 	match trade_client.place_order(initial_order, client_order_id, trader_id, strategy_id, instrument_id).await {
 		Ok(()) => log!("Initial order request sent successfully"),
 		Err(e) => {
-			log!("Failed to place initial order: {:?}", e);
-			bail!("Failed to place initial order: {}", e);
+			log!("Failed to place initial order: {e:?}");
+			bail!("Failed to place initial order: {e}");
 		}
 	}
 

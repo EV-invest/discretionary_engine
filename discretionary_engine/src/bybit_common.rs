@@ -99,7 +99,7 @@ impl BybitAmendClient {
 		// Bybit signature: timestamp + api_key + recv_window + param_str
 		let sign_str = format!("{timestamp}{}{recv_window}{param_str}", self.api_key);
 
-		let mut mac = Hmac::<Sha256>::new_from_slice(self.api_secret.as_bytes()).map_err(|e| color_eyre::eyre::eyre!("Invalid secret key: {}", e))?;
+		let mut mac = Hmac::<Sha256>::new_from_slice(self.api_secret.as_bytes()).map_err(|e| color_eyre::eyre::eyre!("Invalid secret key: {e}"))?;
 		mac.update(sign_str.as_bytes());
 		let signature = hex::encode(mac.finalize().into_bytes());
 
@@ -141,7 +141,7 @@ impl BybitAmendClient {
 		// Bybit signature: timestamp + api_key + recv_window + param_str
 		let sign_str = format!("{timestamp}{}{recv_window}{param_str}", self.api_key);
 
-		let mut mac = Hmac::<Sha256>::new_from_slice(self.api_secret.as_bytes()).map_err(|e| color_eyre::eyre::eyre!("Invalid secret key: {}", e))?;
+		let mut mac = Hmac::<Sha256>::new_from_slice(self.api_secret.as_bytes()).map_err(|e| color_eyre::eyre::eyre!("Invalid secret key: {e}"))?;
 		mac.update(sign_str.as_bytes());
 		let signature = hex::encode(mac.finalize().into_bytes());
 

@@ -58,7 +58,7 @@ pub(crate) async fn main(args: NukeArgs, live_settings: Arc<LiveSettings>, testn
 			return Ok(());
 		}
 
-		log!("Current position: {:?} {} {}", position.side, position_size, symbol);
+		log!("Current position: {:?} {position_size} {symbol}", position.side);
 
 		// Determine order side (opposite of position side)
 		let order_side = if position.side == BybitPositionSide::Buy { "Sell" } else { "Buy" };
@@ -81,7 +81,7 @@ pub(crate) async fn main(args: NukeArgs, live_settings: Arc<LiveSettings>, testn
 			.result
 			.list
 			.get(0)
-			.ok_or_else(|| color_eyre::eyre::eyre!("No instrument info found for {}", symbol))?;
+			.ok_or_else(|| color_eyre::eyre::eyre!("No instrument info found for {symbol}"))?;
 
 		let qty_step: f64 = instrument.lot_size_filter.qty_step.parse().context("Failed to parse qtyStep")?;
 		let tick_size: f64 = instrument.price_filter.tick_size.parse().context("Failed to parse tickSize")?;
@@ -134,7 +134,7 @@ pub(crate) async fn main(args: NukeArgs, live_settings: Arc<LiveSettings>, testn
 			return Ok(());
 		}
 
-		log!("Current position: {:?} {} {}", position.side, position_size, symbol);
+		log!("Current position: {:?} {position_size} {symbol}", position.side);
 
 		// Determine order side (opposite of position side)
 		let order_side = if position.side == BybitPositionSide::Buy { "Sell" } else { "Buy" };

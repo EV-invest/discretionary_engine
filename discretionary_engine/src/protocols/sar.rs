@@ -56,7 +56,7 @@ impl ProtocolTrait for SarWrapper {
 
 				while let Some(msg) = read.next().await {
 					let data = msg.unwrap().into_data();
-					debug!("SAR received websocket klines update: {:?}", data);
+					debug!("SAR received websocket klines update: {data:?}");
 					match serde_json::from_slice::<Value>(&data) {
 						Ok(json) =>
 							if let Some(open_str) = json.get("o") {

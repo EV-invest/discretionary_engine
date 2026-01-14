@@ -98,7 +98,7 @@ impl PositionAcquisition {
 			}
 		}
 
-		info!("Acquisition completed:\nFilled: {:?}\nTarget: {:?}", executed_notional, target_coin_quantity);
+		info!("Acquisition completed:\nFilled: {executed_notional:?}\nTarget: {target_coin_quantity:?}");
 		Ok(Self {
 			__spec,
 			notional: executed_notional,
@@ -157,7 +157,7 @@ impl PositionFollowup {
 			}
 		}
 
-		info!("Followup completed:\nFilled: {:?}\nTarget: {:?}", executed_notional, __acquisition.notional);
+		info!("Followup completed:\nFilled: {executed_notional:?}\nTarget: {:?}", __acquisition.notional);
 		Ok(Self {
 			_acquisition: __acquisition,
 			protocols_spec: protocols,
@@ -193,7 +193,7 @@ async fn send_orders_to_hub(
 	match hub_tx.send(PositionToHub::new(last_fill_key, new_target_orders, position_callback)).await {
 		Ok(_) => {}
 		Err(e) => {
-			debug!("Error sending orders: {:?}", e);
+			debug!("Error sending orders: {e:?}");
 			return Err(e.into());
 		}
 	};
@@ -217,7 +217,7 @@ async fn process_fills_update(protocol_fills: ProtocolFills, dyn_info: &mut Posi
 					.update_fill_at(protocol_order_id.ordinal, filled_notional);
 
 				accessed_info_fields.push(found_protocol_info.clone());
-				Span::current().record("accessed_info_fields", format!("{:?}", accessed_info_fields));
+				Span::current().record("accessed_info_fields", format!("{accessed_info_fields:?}"));
 			}
 		}
 	}
@@ -297,7 +297,7 @@ fn recalculate_protocol_orders(
 				Some(offset) => {
 					match i {
 						x if x == in_play_protocols_map.len() - 1 => {
-							debug!("Discarding leftovers for {:?}", _protocol_type);
+							debug!("Discarding leftovers for {_protocol_type:?}");
 						}
 						_ => {
 							// Note: we break immediately so no need to update accumulated_leftovers

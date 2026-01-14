@@ -94,7 +94,7 @@ pub(crate) async fn main(args: AdjustPosArgs, live_settings: Arc<LiveSettings>, 
 				SizeType::MinOrder(magnitude)
 			} else {
 				// TODO: Handle conversion from other assets to USD
-				bail!("Asset conversion not yet implemented. Got {} {}, need to convert to USD", magnitude, unit_part);
+				bail!("Asset conversion not yet implemented. Got {magnitude} {unit_part}, need to convert to USD");
 			}
 		} else {
 			// Plain number - treat as quote currency (actual quantity)
@@ -125,7 +125,7 @@ pub(crate) async fn main(args: AdjustPosArgs, live_settings: Arc<LiveSettings>, 
 		.await
 		.context("Failed to fetch ticker data")?;
 
-	let ticker = ticker_response.result.list.get(0).ok_or_else(|| color_eyre::eyre::eyre!("No ticker data found for {}", symbol))?;
+	let ticker = ticker_response.result.list.get(0).ok_or_else(|| color_eyre::eyre::eyre!("No ticker data found for {symbol}"))?;
 
 	let current_price: f64 = ticker.last_price.parse().context("Failed to parse price as float")?;
 	info!("Current price: ${current_price}");
@@ -146,7 +146,7 @@ pub(crate) async fn main(args: AdjustPosArgs, live_settings: Arc<LiveSettings>, 
 		.result
 		.list
 		.get(0)
-		.ok_or_else(|| color_eyre::eyre::eyre!("No instrument info found for {}", symbol))?;
+		.ok_or_else(|| color_eyre::eyre::eyre!("No instrument info found for {symbol}"))?;
 
 	let lot_size_filter = &instrument.lot_size_filter;
 	let qty_step: f64 = lot_size_filter.qty_step.parse().context("Failed to parse qtyStep")?;

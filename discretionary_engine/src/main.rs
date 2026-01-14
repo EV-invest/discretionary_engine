@@ -153,7 +153,7 @@ async fn main() -> Result<()> {
 	let state_dir = dirs::state_dir()
 		.unwrap_or_else(|| dirs::home_dir().expect("Could not determine home directory").join(".local/state"))
 		.join(config::EXE_NAME);
-	std::fs::create_dir_all(&state_dir).wrap_err_with(|| format!("Failed to create state directory at {:?}", state_dir))?;
+	std::fs::create_dir_all(&state_dir).wrap_err_with(|| format!("Failed to create state directory at {state_dir:?}"))?;
 	let log_path = match std::env::var("TEST_LOG") {
 		Ok(_) => None,
 		Err(_) => Some(state_dir.join(".log").into_boxed_path()),

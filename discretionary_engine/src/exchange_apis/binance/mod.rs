@@ -145,7 +145,7 @@ pub async fn signed_request<S: AsRef<str>>(http_method: reqwest::Method, endpoin
 
 #[instrument]
 pub async fn unsigned_request(http_method: reqwest::Method, endpoint_str: &str, params: HashMap<&str, String>) -> Result<reqwest::Response> {
-	debug!("requesting unsigned\nEndpoint: {}\nParams: {:?}", endpoint_str, &params);
+	debug!("requesting unsigned\nEndpoint: {endpoint_str}\nParams: {:?}", &params);
 	let client = reqwest::Client::new();
 	let r = client.request(http_method, endpoint_str).query(&params).send().await?;
 
@@ -344,7 +344,7 @@ pub async fn get_historic_klines(symbol: String, interval: String, limit: usize)
 
 	if !response.status().is_success() {
 		let error_body = response.text().await?;
-		bail!("Binance API error: {}", error_body);
+		bail!("Binance API error: {error_body}");
 	}
 
 	let klines: Vec<BinanceKline> = response.json().await?;
@@ -389,7 +389,7 @@ pub async fn binance_runtime(
 				let currently_deployed_read = currently_deployed_clone.read().unwrap();
 				currently_deployed_read.iter().cloned().collect()
 			};
-			debug!("Local knowledge of deployed orders: {:?}", orders);
+			debug!("Local knowledge of deployed orders: {orders:?}");
 
 			// Will update to websocket later, so requesting the actual deployed orders is free.
 
@@ -402,11 +402,11 @@ pub async fn binance_runtime(
 				let r: FuturesPositionResponse = match poll_futures_order(&pubkey_clone, &secret_clone, order).await {
 					Ok(r) => r,
 					Err(e) => {
-						warn!("Error polling order: {:?}, breaking to the outer order-pull task loop", e);
+						warn!("Error polling order: {e:?}, breaking to the outer order-pull task loop");
 						continue;
 					}
 				};
-				debug!("Successfully polled order: {:?}", r);
+				debug!("Successfully polled order: {r:?}");
 				//
 
 				// All other info except amount filled notional will only be relevant during trade's post-execution analysis.
@@ -537,7 +537,7 @@ async fn handle_hub_orders_update(
 		let b = match post_futures_order(pubkey.to_string(), secret.to_string(), &o, binance_exchange_arc.clone()).await {
 			Ok(order) => order,
 			Err(e) => {
-				tracing::error!("Error posting order: {:?}", e);
+				tracing::error!("Error posting order: {e:?}");
 				continue;
 			}
 		};

@@ -44,7 +44,7 @@ impl std::str::FromStr for Market {
 			_ if graphemics!(BinanceFutures).contains(&s) => Ok(Market::BinanceFutures),
 			_ if graphemics!(BinanceSpot).contains(&s) => Ok(Market::BinanceSpot),
 			_ if graphemics!(BinanceMargin).contains(&s) => Ok(Market::BinanceMargin),
-			_ => bail!("Unknown market: {}", s),
+			_ => bail!("Unknown market: {s}"),
 		}
 	}
 }

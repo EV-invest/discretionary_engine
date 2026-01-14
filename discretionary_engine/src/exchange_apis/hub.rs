@@ -117,7 +117,7 @@ fn handle_update_from_position(
 	let position_local_knowledge = positions_local_knowledge
 		.entry(position_id)
 		.or_insert(PositionLocalKnowledge::new(Uuid::default(), hub_rx.position_callback.sender, Vec::new()));
-	Span::current().record("position_local_knowledge", format!("{:?}", position_local_knowledge));
+	Span::current().record("position_local_knowledge", format!("{position_local_knowledge:?}"));
 
 	if position_local_knowledge.key != hub_rx.key {
 		// by internal convention, on init the key is Uuid::default()

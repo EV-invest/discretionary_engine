@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
 	}
 
 	// Validate positions_dir exists
-	let initial_config = live_settings?.initial();
+	let initial_config = live_settings.config()?;
 	std::fs::create_dir_all(&initial_config.positions_dir).wrap_err_with(|| format!("Failed to create positions directory at {:?}", initial_config.positions_dir))?;
 	// Create XDG state directory for logs and other state
 	let state_dir = dirs::state_dir()
@@ -67,15 +67,14 @@ async fn main() -> Result<()> {
 		Commands::AdjustPos(adjust_pos_args) => adjust_pos::main(adjust_pos_args, live_settings.clone(), cli.testnet).await,
 		Commands::Nuke(nuke_args) => nuke::main(nuke_args, live_settings.clone(), cli.testnet).await,
 		Commands::Strategy { command } => {
-			let redis_port = live_settings?.initial().strategy.as_ref().map(|s| s.redis_port).unwrap_or(6379);
+			let redis_port = live_settings.config()?.strategy.as_ref().map(|s| s.redis_port).unwrap_or(6379);
 			match command {
 				StrategyCommands::Start => discretionary_engine_strategy::commands::start_listener(redis_port).await,
 				StrategyCommands::Submit(args) => {
 					let submit_args = discretionary_engine_strategy::commands::SubmitArgs {
 						size_usdt: args.size_usdt,
 						coin: args.coin,
-						acquisition_protocols: args.acquisition_protocols,
-						followup_protocols: args.followup_protocols,
+						protocols: args.protocols,
 						testnet: cli.testnet,
 					};
 					discretionary_engine_strategy::commands::submit(submit_args, redis_port).await
@@ -162,12 +161,9 @@ struct StrategySubmitArgs {
 	/// _only_ the coin name itself. e.g. "BTC" or "ETH".
 	#[arg(short, long)]
 	coin: String,
-	/// acquisition protocols parameters
+	/// protocols parameters, in the format of "<protocol>-<params>", e.g. "ts:p0.5".
 	#[arg(short, long)]
-	acquisition_protocols: Vec<String>,
-	/// followup protocols parameters
-	#[arg(short, long)]
-	followup_protocols: Vec<String>,
+	protocols: Vec<String>,
 }
 #[derive(Args, Clone, Debug)]
 struct PositionArgs {

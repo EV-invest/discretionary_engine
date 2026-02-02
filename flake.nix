@@ -30,6 +30,7 @@
             enable = true;
             workspace = {
               "./discretionary_engine" = [ "git_version" "log_directives" ];
+              "./discretionary_engine_strategy" = [ "git_version" "log_directives" ];
             };
           };
           style = {

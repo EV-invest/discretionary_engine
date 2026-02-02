@@ -9,6 +9,17 @@ pub struct ShellInitArgs {
 	shell: Shell,
 }
 
+pub fn output(args: ShellInitArgs) {
+	let shell = args.shell;
+	let s = format!(
+		r#"{}
+{}"#,
+		shell.aliases(EXE_NAME),
+		shell.completions(),
+	);
+
+	println!("{s}");
+}
 #[derive(Clone, Copy, Debug, Display, FromStr)]
 enum Shell {
 	Dash,
@@ -43,16 +54,4 @@ alias de="{exe_name}"
 
 		String::from_utf8(buffer).unwrap_or_else(|_| String::from("# Failed to generate completions"))
 	}
-}
-
-pub fn output(args: ShellInitArgs) {
-	let shell = args.shell;
-	let s = format!(
-		r#"{}
-{}"#,
-		shell.aliases(EXE_NAME),
-		shell.completions(),
-	);
-
-	println!("{s}");
 }

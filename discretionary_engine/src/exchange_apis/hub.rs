@@ -50,19 +50,6 @@ pub struct PositionToHub {
 	position_callback: HubToPosition,
 }
 
-#[derive(Clone, Debug, derive_new::new)]
-struct PositionLocalKnowledge {
-	pub key: Uuid,
-	pub callback: mpsc::Sender<ProtocolFills>,
-	pub requested_orders: Vec<ConceptualOrder<ProtocolOrderId>>,
-}
-
-#[derive(Clone, Debug, Default, derive_new::new)]
-struct ExchangeLocalKnowledge {
-	pub key: Uuid,
-	pub target_orders: Vec<Order<PositionOrderId>>,
-}
-
 #[instrument(skip_all)]
 pub async fn hub(live_settings: Arc<LiveSettings>, mut rx: mpsc::Receiver<PositionToHub>, exchanges: Arc<Exchanges>) -> Result<()> {
 	// TODO!!: assert all protocol orders here with trigger prices have them above/below current price in accordance to order's side.
@@ -104,6 +91,18 @@ pub async fn hub(live_settings: Arc<LiveSettings>, mut rx: mpsc::Receiver<Positi
 
 	js.join_all().await;
 	Ok(())
+}
+#[derive(Clone, Debug, derive_new::new)]
+struct PositionLocalKnowledge {
+	pub key: Uuid,
+	pub callback: mpsc::Sender<ProtocolFills>,
+	pub requested_orders: Vec<ConceptualOrder<ProtocolOrderId>>,
+}
+
+#[derive(Clone, Debug, Default, derive_new::new)]
+struct ExchangeLocalKnowledge {
+	pub key: Uuid,
+	pub target_orders: Vec<Order<PositionOrderId>>,
 }
 
 #[instrument(skip(orders_tx, positions_local_knowledge), fields(position_local_knowledge = Empty))]

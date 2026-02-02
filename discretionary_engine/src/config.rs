@@ -10,10 +10,6 @@ use secrecy::SecretString;
 use v_exchanges::ExchangeName;
 use v_utils::{Percent, macros as v_macros, percent::PercentU};
 
-fn __default_comparison_offset_h() -> u32 {
-	24
-}
-
 #[derive(Clone, Debug, v_macros::LiveSettings, v_macros::MyConfigPrimitives, v_macros::Settings)]
 #[settings(use_env = true)]
 pub struct AppConfig {
@@ -40,14 +36,12 @@ pub struct ExchangeConfig {
 	#[serde(default)]
 	pub passphrase: Option<SecretString>,
 }
-
 #[derive(Clone, Debug, Default, v_macros::MyConfigPrimitives, v_macros::SettingsNested)]
 pub struct RiskConfig {
 	#[settings(flatten)]
 	pub size: Option<SizeConfig>,
 	pub other_balances: Option<f64>,
 }
-
 #[derive(Clone, Debug, Default, v_macros::MyConfigPrimitives, v_macros::SettingsNested)]
 pub struct SizeConfig {
 	pub default_sl: Percent,
@@ -58,7 +52,6 @@ pub struct SizeConfig {
 	#[settings(flatten)]
 	pub risk_layers: Option<RiskLayersConfig>,
 }
-
 #[derive(Clone, Debug, v_macros::MyConfigPrimitives, v_macros::SettingsNested, smart_default::SmartDefault)]
 #[serde(default)]
 pub struct RiskLayersConfig {
@@ -69,4 +62,7 @@ pub struct RiskLayersConfig {
 	pub from_phone: bool,
 	#[serde(default)]
 	pub lost_last_trade: bool,
+}
+fn __default_comparison_offset_h() -> u32 {
+	24
 }

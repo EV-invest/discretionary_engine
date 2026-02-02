@@ -1,48 +1,6 @@
 #![allow(non_snake_case, dead_code)]
 use tracing::{info, trace};
 pub mod info;
-mod orders;
-use std::{
-	collections::HashMap,
-	sync::{Arc, RwLock},
-};
-
-use chrono::Utc;
-use color_eyre::eyre::{Result, bail};
-use hmac::{Hmac, Mac};
-use info::BinanceExchangeFutures;
-pub use orders::*;
-use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
-use reqwest::{
-	Method,
-	header::{CONTENT_TYPE, HeaderMap, HeaderValue},
-};
-use serde::{Deserialize, Serialize};
-use serde_json::{Number, Value};
-use serde_with::{DisplayFromStr, serde_as};
-use sha2::Sha256;
-use tokio::{
-	select,
-	sync::{mpsc, watch},
-	task::JoinSet,
-};
-use tracing::{debug, instrument, warn};
-use url::Url;
-use uuid::Uuid;
-use v_utils::{Percent, trades::Ohlc};
-
-use super::{
-	hub::{ExchangeToHub, HubToExchange},
-	order_types::{ConceptualMarket, ConceptualOrderType, IdRequirements},
-};
-use crate::{
-	MAX_CONNECTION_FAILURES, PositionOrderId,
-	config::LiveSettings,
-	exchange_apis::{Market, order_types::Order},
-	utils::{deser_reqwest, report_connection_problem, unexpected_response_str},
-};
-type HmacSha256 = Hmac<Sha256>;
-
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct BinanceExchange {
 	pub binance_futures_info: BinanceExchangeFutures,
@@ -142,7 +100,6 @@ pub async fn signed_request<S: AsRef<str>>(http_method: reqwest::Method, endpoin
 
 	bail!("Max retries reached. Request failed.")
 }
-
 #[instrument]
 pub async fn unsigned_request(http_method: reqwest::Method, endpoint_str: &str, params: HashMap<&str, String>) -> Result<reqwest::Response> {
 	debug!("requesting unsigned\nEndpoint: {endpoint_str}\nParams: {:?}", &params);
@@ -156,7 +113,6 @@ pub async fn unsigned_request(http_method: reqwest::Method, endpoint_str: &str, 
 	let error_html = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
 	Err(unexpected_response_str(&error_html))
 }
-
 #[instrument(skip(key, secret))]
 pub async fn get_balance(key: String, secret: String, market: Market) -> Result<f64> {
 	let mut params = HashMap::<&str, String>::new();
@@ -202,16 +158,6 @@ pub async fn get_balance(key: String, secret: String, market: Market) -> Result<
 		}
 	}
 }
-
-#[serde_as]
-#[derive(Clone, Debug, Default, Deserialize, Serialize, derive_new::new)]
-struct PriceResponse {
-	#[serde_as(as = "DisplayFromStr")]
-	price: f64,
-	symbol: String,
-	time: i64,
-}
-
 #[instrument]
 pub async fn futures_price(asset: &str) -> Result<f64> {
 	debug!("requesting futures price"); //doesn't flush immediately, needs fixing to be useful
@@ -231,7 +177,6 @@ pub async fn futures_price(asset: &str) -> Result<f64> {
 
 	Ok(price_response.price)
 }
-
 #[instrument]
 pub async fn close_orders(key: String, secret: String, orders: &[BinanceOrder]) -> Result<()> {
 	let base_url = Market::BinanceFutures.get_base_url();
@@ -252,7 +197,6 @@ pub async fn close_orders(key: String, secret: String, orders: &[BinanceOrder]) 
 
 	Ok(())
 }
-
 #[instrument(skip_all)]
 pub async fn get_futures_positions(key: String, secret: String) -> Result<HashMap<String, f64>> {
 	let url = FuturesAllPositionsResponse::get_url();
@@ -268,7 +212,6 @@ pub async fn get_futures_positions(key: String, secret: String) -> Result<HashMa
 	}
 	Ok(positions_map)
 }
-
 #[instrument(skip(key, secret, binance_exchange_arc))]
 pub async fn post_futures_order(key: String, secret: String, order: &Order<PositionOrderId>, binance_exchange_arc: Arc<RwLock<BinanceExchange>>) -> Result<BinanceOrder> {
 	debug!("Posting order");
@@ -283,7 +226,6 @@ pub async fn post_futures_order(key: String, secret: String, order: &Order<Posit
 	binance_order.binance_id = Some(response.order_id);
 	Ok(binance_order)
 }
-
 /// Normally, the only cases where the return from this poll is going to be _reacted_ to, is when response.status == OrderStatus::Filled or an error is returned.
 // TODO!: translate to websockets
 #[instrument(skip(key, secret))]
@@ -300,7 +242,6 @@ pub async fn poll_futures_order<S: AsRef<str>>(key: S, secret: S, binance_order:
 	let response: FuturesPositionResponse = deser_reqwest(r).await?;
 	Ok(response)
 }
-
 #[derive(Debug, Deserialize)]
 pub struct BinanceKline {
 	open_time: i64,
@@ -316,23 +257,6 @@ pub struct BinanceKline {
 	taker_buy_quote_asset_volume: String,
 	ignore: String,
 }
-impl From<BinanceKline> for Ohlc {
-	fn from(val: BinanceKline) -> Self {
-		Ohlc {
-			open: val.open.parse().unwrap(),
-			high: val.high.parse().unwrap(),
-			low: val.low.parse().unwrap(),
-			close: val.close.parse().unwrap(),
-		}
-	}
-}
-
-#[derive(Clone, Debug, Default, derive_new::new)]
-struct FillFromPolling {
-	order: Order<PositionOrderId>,
-	market_response: FuturesPositionResponse, //HACK: harcodes futures
-}
-
 #[instrument]
 pub async fn get_historic_klines(symbol: String, interval: String, limit: usize) -> Result<Vec<BinanceKline>> {
 	let base_url = Market::BinanceFutures.get_base_url();
@@ -350,7 +274,6 @@ pub async fn get_historic_klines(symbol: String, interval: String, limit: usize)
 	let klines: Vec<BinanceKline> = response.json().await?;
 	Ok(klines)
 }
-
 /// NB: must be communicating back to the hub, can't shortcut and talk back directly to positions.
 #[instrument(skip_all)]
 pub async fn binance_runtime(
@@ -455,6 +378,129 @@ pub async fn binance_runtime(
 		}
 	}
 }
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub enum OrderStatus {
+	#[default]
+	#[serde(rename = "NEW")]
+	New,
+	#[serde(rename = "PARTIALLY_FILLED")]
+	PartiallyFilled,
+	#[serde(rename = "FILLED")]
+	Filled,
+	#[serde(rename = "CANCELED")]
+	Canceled,
+	#[serde(rename = "EXPIRED")]
+	Expired,
+	#[serde(rename = "EXPIRED_IN_MATCH")]
+	ExpiredInMatch,
+}
+#[serde_as]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FuturesPositionResponse {
+	pub client_order_id: Option<String>,
+	pub cum_qty: Option<String>, // weird field, included at random (json api things)
+	pub cum_quote: String,       // total filled quote asset
+	#[serde_as(as = "DisplayFromStr")]
+	pub executed_qty: f64, // total filled base asset
+	pub order_id: i64,
+	pub avg_price: Option<String>,
+	pub orig_qty: String,
+	pub price: String,
+	pub reduce_only: Value,
+	pub side: String,
+	pub position_side: Option<String>, // only sent when in hedge mode
+	pub status: OrderStatus,
+	pub stop_price: String,
+	pub close_position: Value,
+	pub symbol: String,
+	pub time_in_force: String,
+	pub r#type: String,
+	pub orig_type: String,
+	pub activate_price: Option<f64>, // only returned on TRAILING_STOP_MARKET order
+	pub price_rate: Option<f64>,     // only returned on TRAILING_STOP_MARKET order
+	pub update_time: i64,
+	pub working_type: Option<String>, // no clue what this is
+	pub price_protect: bool,
+	pub price_match: Option<String>, // huh
+	pub self_trade_prevention_mode: Option<String>,
+	pub good_till_date: Option<i64>,
+}
+impl FuturesPositionResponse {
+	pub fn get_url() -> Url {
+		let base_url = Market::BinanceFutures.get_base_url();
+		// the way this works - is we sumbir "New" and "Query" to the same endpoint. The action is then determined by the presence of the orderId parameter.
+		base_url.join("/fapi/v1/order").unwrap()
+	}
+}
+
+mod orders;
+use std::{
+	collections::HashMap,
+	sync::{Arc, RwLock},
+};
+
+use chrono::Utc;
+use color_eyre::eyre::{Result, bail};
+use hmac::{Hmac, Mac};
+use info::BinanceExchangeFutures;
+pub use orders::*;
+use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
+use reqwest::{
+	Method,
+	header::{CONTENT_TYPE, HeaderMap, HeaderValue},
+};
+use serde::{Deserialize, Serialize};
+use serde_json::{Number, Value};
+use serde_with::{DisplayFromStr, serde_as};
+use sha2::Sha256;
+use tokio::{
+	select,
+	sync::{mpsc, watch},
+	task::JoinSet,
+};
+use tracing::{debug, instrument, warn};
+use url::Url;
+use uuid::Uuid;
+use v_utils::{Percent, trades::Ohlc};
+
+use super::{
+	hub::{ExchangeToHub, HubToExchange},
+	order_types::{ConceptualMarket, ConceptualOrderType, IdRequirements},
+};
+use crate::{
+	MAX_CONNECTION_FAILURES, PositionOrderId,
+	config::LiveSettings,
+	exchange_apis::{Market, order_types::Order},
+	utils::{deser_reqwest, report_connection_problem, unexpected_response_str},
+};
+type HmacSha256 = Hmac<Sha256>;
+
+#[serde_as]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, derive_new::new)]
+struct PriceResponse {
+	#[serde_as(as = "DisplayFromStr")]
+	price: f64,
+	symbol: String,
+	time: i64,
+}
+
+impl From<BinanceKline> for Ohlc {
+	fn from(val: BinanceKline) -> Self {
+		Ohlc {
+			open: val.open.parse().unwrap(),
+			high: val.high.parse().unwrap(),
+			low: val.low.parse().unwrap(),
+			close: val.close.parse().unwrap(),
+		}
+	}
+}
+
+#[derive(Clone, Debug, Default, derive_new::new)]
+struct FillFromPolling {
+	order: Order<PositionOrderId>,
+	market_response: FuturesPositionResponse, //HACK: harcodes futures
+}
 
 #[instrument(skip(hub_callback))]
 async fn handle_temp_fills_stack(
@@ -554,64 +600,6 @@ async fn handle_hub_orders_update(
 //=============================================================================
 // Response structs {{{
 //=============================================================================
-
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub enum OrderStatus {
-	#[default]
-	#[serde(rename = "NEW")]
-	New,
-	#[serde(rename = "PARTIALLY_FILLED")]
-	PartiallyFilled,
-	#[serde(rename = "FILLED")]
-	Filled,
-	#[serde(rename = "CANCELED")]
-	Canceled,
-	#[serde(rename = "EXPIRED")]
-	Expired,
-	#[serde(rename = "EXPIRED_IN_MATCH")]
-	ExpiredInMatch,
-}
-
-#[serde_as]
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FuturesPositionResponse {
-	pub client_order_id: Option<String>,
-	pub cum_qty: Option<String>, // weird field, included at random (json api things)
-	pub cum_quote: String,       // total filled quote asset
-	#[serde_as(as = "DisplayFromStr")]
-	pub executed_qty: f64, // total filled base asset
-	pub order_id: i64,
-	pub avg_price: Option<String>,
-	pub orig_qty: String,
-	pub price: String,
-	pub reduce_only: Value,
-	pub side: String,
-	pub position_side: Option<String>, // only sent when in hedge mode
-	pub status: OrderStatus,
-	pub stop_price: String,
-	pub close_position: Value,
-	pub symbol: String,
-	pub time_in_force: String,
-	pub r#type: String,
-	pub orig_type: String,
-	pub activate_price: Option<f64>, // only returned on TRAILING_STOP_MARKET order
-	pub price_rate: Option<f64>,     // only returned on TRAILING_STOP_MARKET order
-	pub update_time: i64,
-	pub working_type: Option<String>, // no clue what this is
-	pub price_protect: bool,
-	pub price_match: Option<String>, // huh
-	pub self_trade_prevention_mode: Option<String>,
-	pub good_till_date: Option<i64>,
-}
-
-impl FuturesPositionResponse {
-	pub fn get_url() -> Url {
-		let base_url = Market::BinanceFutures.get_base_url();
-		// the way this works - is we sumbir "New" and "Query" to the same endpoint. The action is then determined by the presence of the orderId parameter.
-		base_url.join("/fapi/v1/order").unwrap()
-	}
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct FuturesBalance {

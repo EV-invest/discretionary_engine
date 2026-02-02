@@ -5,17 +5,94 @@
 #![feature(type_changing_struct_update)]
 #![feature(stmt_expr_attributes)]
 
+pub mod config;
+pub mod exchange_apis;
+pub mod positions;
+pub mod protocols;
+pub mod utils;
+pub static MAX_CONNECTION_FAILURES: u32 = 10;
+pub static MUT_CURRENT_CONNECTION_FAILURES: AtomicU32 = AtomicU32::new(0);
+#[tokio::main]
+async fn main() -> Result<()> {
+	color_eyre::install()?;
+	let cli = Cli::parse();
+
+	// Init doesn't require config
+	if let Commands::Init(args) = cli.command {
+		shell_init::output(args);
+		return Ok(());
+	}
+
+	let live_settings = match LiveSettings::new(cli.settings, Duration::from_secs(5)) {
+		Ok(ls) => Arc::new(ls),
+		Err(e) => {
+			eprintln!("Loading config failed: {e}");
+			std::process::exit(1);
+		}
+	};
+
+	// Handle risk commands early - they don't need the full exchange infrastructure
+	if let Commands::Risk { command } = cli.command {
+		utils::init_subscriber(None);
+		exit_on_error(match command {
+			risk::RiskCommands::Size(args) => risk::size_main(live_settings, args).await,
+			risk::RiskCommands::Balance => risk::balance_main(live_settings).await,
+		});
+		return Ok(());
+	}
+
+	// Validate positions_dir exists
+	let initial_config = live_settings?.initial();
+	std::fs::create_dir_all(&initial_config.positions_dir).wrap_err_with(|| format!("Failed to create positions directory at {:?}", initial_config.positions_dir))?;
+	// Create XDG state directory for logs and other state
+	let state_dir = dirs::state_dir()
+		.unwrap_or_else(|| dirs::home_dir().expect("Could not determine home directory").join(".local/state"))
+		.join(config::EXE_NAME);
+	std::fs::create_dir_all(&state_dir).wrap_err_with(|| format!("Failed to create state directory at {state_dir:?}"))?;
+	let log_path = match std::env::var("TEST_LOG") {
+		Ok(_) => None,
+		Err(_) => Some(state_dir.join(".log").into_boxed_path()),
+	};
+	utils::init_subscriber(log_path);
+	let mut js = JoinSet::new();
+	let exchanges_arc = Arc::new(
+		Exchanges::init(live_settings.clone())
+			.await
+			.wrap_err_with(|| "Error initializing Exchanges, likely indicative of bad internet connection")?,
+	);
+	let tx = hub::init_hub(live_settings.clone(), &mut js, exchanges_arc.clone());
+
+	exit_on_error(match cli.command {
+		Commands::Run(args) => command_new(args, live_settings.clone(), tx, exchanges_arc).await,
+		Commands::AdjustPos(adjust_pos_args) => adjust_pos::main(adjust_pos_args, live_settings.clone(), cli.testnet).await,
+		Commands::Nuke(nuke_args) => nuke::main(nuke_args, live_settings.clone(), cli.testnet).await,
+		Commands::Strategy { command } => {
+			let redis_port = live_settings?.initial().strategy.as_ref().map(|s| s.redis_port).unwrap_or(6379);
+			match command {
+				StrategyCommands::Start => discretionary_engine_strategy::commands::start_listener(redis_port).await,
+				StrategyCommands::Submit(args) => {
+					let submit_args = discretionary_engine_strategy::commands::SubmitArgs {
+						size_usdt: args.size_usdt,
+						coin: args.coin,
+						acquisition_protocols: args.acquisition_protocols,
+						followup_protocols: args.followup_protocols,
+						testnet: cli.testnet,
+					};
+					discretionary_engine_strategy::commands::submit(submit_args, redis_port).await
+				}
+			}
+		}
+		Commands::Risk { .. } | Commands::Init(_) => unreachable!(),
+	});
+
+	Ok(())
+}
 mod adjust_pos;
 mod bybit_common;
 mod chase_limit;
-pub mod config;
-pub mod exchange_apis;
 mod nuke;
-pub mod positions;
-pub mod protocols;
 mod risk;
 mod shell_init;
-pub mod utils;
 mod ws_chase_limit;
 use std::{
 	sync::{Arc, atomic::AtomicU32},
@@ -33,9 +110,6 @@ use v_utils::{
 	trades::{Side, Timeframe},
 	utils::exit_on_error,
 };
-
-pub static MAX_CONNECTION_FAILURES: u32 = 10;
-pub static MUT_CURRENT_CONNECTION_FAILURES: AtomicU32 = AtomicU32::new(0);
 
 #[derive(Parser)]
 #[command(author, version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"), about, long_about = None)]
@@ -116,82 +190,6 @@ struct PositionArgs {
 }
 
 // TODO: change to initializing exchange sockets once, then just have a loop listening on localhost, that accepts new positions or modification requests.
-
-#[tokio::main]
-async fn main() -> Result<()> {
-	color_eyre::install()?;
-	let cli = Cli::parse();
-
-	// Init doesn't require config
-	if let Commands::Init(args) = cli.command {
-		shell_init::output(args);
-		return Ok(());
-	}
-
-	let live_settings = match LiveSettings::new(cli.settings, Duration::from_secs(5)) {
-		Ok(ls) => Arc::new(ls),
-		Err(e) => {
-			eprintln!("Loading config failed: {e}");
-			std::process::exit(1);
-		}
-	};
-
-	// Handle risk commands early - they don't need the full exchange infrastructure
-	if let Commands::Risk { command } = cli.command {
-		utils::init_subscriber(None);
-		exit_on_error(match command {
-			risk::RiskCommands::Size(args) => risk::size_main(live_settings, args).await,
-			risk::RiskCommands::Balance => risk::balance_main(live_settings).await,
-		});
-		return Ok(());
-	}
-
-	// Validate positions_dir exists
-	let initial_config = live_settings.initial();
-	std::fs::create_dir_all(&initial_config.positions_dir).wrap_err_with(|| format!("Failed to create positions directory at {:?}", initial_config.positions_dir))?;
-	// Create XDG state directory for logs and other state
-	let state_dir = dirs::state_dir()
-		.unwrap_or_else(|| dirs::home_dir().expect("Could not determine home directory").join(".local/state"))
-		.join(config::EXE_NAME);
-	std::fs::create_dir_all(&state_dir).wrap_err_with(|| format!("Failed to create state directory at {state_dir:?}"))?;
-	let log_path = match std::env::var("TEST_LOG") {
-		Ok(_) => None,
-		Err(_) => Some(state_dir.join(".log").into_boxed_path()),
-	};
-	utils::init_subscriber(log_path);
-	let mut js = JoinSet::new();
-	let exchanges_arc = Arc::new(
-		Exchanges::init(live_settings.clone())
-			.await
-			.wrap_err_with(|| "Error initializing Exchanges, likely indicative of bad internet connection")?,
-	);
-	let tx = hub::init_hub(live_settings.clone(), &mut js, exchanges_arc.clone());
-
-	exit_on_error(match cli.command {
-		Commands::Run(args) => command_new(args, live_settings.clone(), tx, exchanges_arc).await,
-		Commands::AdjustPos(adjust_pos_args) => adjust_pos::main(adjust_pos_args, live_settings.clone(), cli.testnet).await,
-		Commands::Nuke(nuke_args) => nuke::main(nuke_args, live_settings.clone(), cli.testnet).await,
-		Commands::Strategy { command } => {
-			let redis_port = live_settings.initial().strategy.as_ref().map(|s| s.redis_port).unwrap_or(6379);
-			match command {
-				StrategyCommands::Start => discretionary_engine_strategy::commands::start_listener(redis_port).await,
-				StrategyCommands::Submit(args) => {
-					let submit_args = discretionary_engine_strategy::commands::SubmitArgs {
-						size_usdt: args.size_usdt,
-						coin: args.coin,
-						acquisition_protocols: args.acquisition_protocols,
-						followup_protocols: args.followup_protocols,
-						testnet: cli.testnet,
-					};
-					discretionary_engine_strategy::commands::submit(submit_args, redis_port).await
-				}
-			}
-		}
-		Commands::Risk { .. } | Commands::Init(_) => unreachable!(),
-	});
-
-	Ok(())
-}
 
 #[instrument(skip(live_settings, tx, exchanges_arc))]
 async fn command_new(position_args: PositionArgs, live_settings: Arc<LiveSettings>, tx: mpsc::Sender<PositionToHub>, exchanges_arc: Arc<Exchanges>) -> Result<()> {

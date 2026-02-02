@@ -1,21 +1,3 @@
-mod approaching_limit;
-mod dummy_market;
-mod sar;
-mod trailing_stop;
-use std::{collections::HashSet, str::FromStr};
-
-use approaching_limit::{ApproachingLimit, ApproachingLimitWrapper};
-use color_eyre::eyre::{Result, bail};
-use dummy_market::DummyMarketWrapper;
-use sar::{Sar, SarWrapper};
-use tokio::{sync::mpsc, task::JoinSet};
-use tracing::instrument;
-use trailing_stop::{TrailingStop, TrailingStopWrapper};
-use uuid::Uuid;
-use v_utils::{Percent, trades::Side};
-
-use crate::exchange_apis::order_types::{ConceptualOrder, ConceptualOrderPercents, ProtocolOrderId};
-
 /// Used when determining sizing or the changes in it, in accordance to the current distribution of rm on types of algorithms.
 ///
 /// Size is by default equally distributed amongst the protocols of the same `ProtocolType`, to total 101% for each type with at least one representative.
@@ -27,7 +9,6 @@ pub enum ProtocolType {
 	SL,
 	StopEntry,
 }
-
 pub trait ProtocolTrait {
 	type Params;
 	/// Requested orders are being sent over the mspc with uuid of the protocol on each batch, as we want to replace the previous requested batch if any.
@@ -35,9 +16,6 @@ pub trait ProtocolTrait {
 	fn set_params(&self, params: Self::Params) -> Result<()>;
 	fn get_type(&self) -> ProtocolType;
 }
-
-// HACK: Protocol enum. Seems suboptimal {\{{
-//TODO!!!!!: pretty sure we can just make a dyn trait. Might need to use `dyno` crate or sth.
 #[derive(Clone, Debug)]
 pub enum Protocol {
 	TrailingStop(TrailingStopWrapper),
@@ -91,23 +69,6 @@ impl Protocol {
 		}
 	}
 }
-impl FromStr for Protocol {
-	type Err = eyre::Report;
-
-	fn from_str(spec: &str) -> Result<Self> {
-		if let Ok(ts) = TrailingStopWrapper::from_str(spec) {
-			Ok(Protocol::TrailingStop(ts))
-		} else if let Ok(sar) = SarWrapper::from_str(spec) {
-			Ok(Protocol::Sar(sar))
-		} else if let Ok(al) = ApproachingLimitWrapper::from_str(spec) {
-			Ok(Protocol::ApproachingLimit(al))
-		} else if let Ok(dm) = DummyMarketWrapper::from_str(spec) {
-			Ok(Protocol::DummyMarket(dm))
-		} else {
-			bail!("Could not convert string to any Protocol\nString: {spec}")
-		}
-	}
-}
 
 #[derive(Clone, Debug, derive_new::new)]
 pub enum ProtocolParams {
@@ -115,23 +76,6 @@ pub enum ProtocolParams {
 	Sar(Sar),
 	ApproachingLimit(ApproachingLimit),
 }
-impl From<TrailingStop> for ProtocolParams {
-	fn from(ts: TrailingStop) -> Self {
-		ProtocolParams::TrailingStop(ts)
-	}
-}
-impl From<Sar> for ProtocolParams {
-	fn from(sar: Sar) -> Self {
-		ProtocolParams::Sar(sar)
-	}
-}
-impl From<ApproachingLimit> for ProtocolParams {
-	fn from(al: ApproachingLimit) -> Self {
-		ProtocolParams::ApproachingLimit(al)
-	}
-}
-//,}}}
-
 #[instrument]
 pub fn interpret_protocol_specs(protocol_specs: Vec<String>) -> Result<Vec<Protocol>> {
 	let protocol_specs: Vec<String> = protocol_specs.into_iter().filter(|s| s != "").collect();
@@ -146,19 +90,16 @@ pub fn interpret_protocol_specs(protocol_specs: Vec<String>) -> Result<Vec<Proto
 	}
 	Ok(protocols)
 }
-
 #[derive(Clone, Debug, Default, derive_new::new)]
 pub struct ProtocolFill {
 	pub id: ProtocolOrderId,
 	pub qty: f64,
 }
-
 #[derive(Clone, Debug, Default, derive_new::new)]
 pub struct ProtocolFills {
 	pub key: Uuid,
 	pub fills: Vec<ProtocolFill>,
 }
-
 /// Position's knowledge of the protocols in use.
 #[derive(Clone, Debug, Default)]
 pub struct ProtocolDynamicInfo {
@@ -191,13 +132,11 @@ pub struct RecalculatedAllocation {
 	/// Some -> the remaining value should be redistributed amongst the remaining protocols (of same type if any, otherwise all). Negative value means we overdid it; same rules apply.
 	pub leftovers: Option<f64>,
 }
-
 #[derive(Clone, Copy, Debug, Default, derive_new::new)]
 pub struct RecalculateOrdersPerOrderInfo {
 	pub filled: f64,
 	pub min_possible_qty: f64,
 }
-
 /// Wrapper around Orders, which allows for updating the target after a partial fill, without making a new request to the protocol.
 ///
 /// # Contract
@@ -284,6 +223,61 @@ impl ProtocolOrders {
 		RecalculatedAllocation { orders, leftovers: None }
 	}
 }
+
+mod approaching_limit;
+mod dummy_market;
+mod sar;
+mod trailing_stop;
+use std::{collections::HashSet, str::FromStr};
+
+use approaching_limit::{ApproachingLimit, ApproachingLimitWrapper};
+use color_eyre::eyre::{Result, bail};
+use dummy_market::DummyMarketWrapper;
+use sar::{Sar, SarWrapper};
+use tokio::{sync::mpsc, task::JoinSet};
+use tracing::instrument;
+use trailing_stop::{TrailingStop, TrailingStopWrapper};
+use uuid::Uuid;
+use v_utils::{Percent, trades::Side};
+
+use crate::exchange_apis::order_types::{ConceptualOrder, ConceptualOrderPercents, ProtocolOrderId};
+
+// HACK: Protocol enum. Seems suboptimal {\{{
+//TODO!!!!!: pretty sure we can just make a dyn trait. Might need to use `dyno` crate or sth.
+impl FromStr for Protocol {
+	type Err = eyre::Report;
+
+	fn from_str(spec: &str) -> Result<Self> {
+		if let Ok(ts) = TrailingStopWrapper::from_str(spec) {
+			Ok(Protocol::TrailingStop(ts))
+		} else if let Ok(sar) = SarWrapper::from_str(spec) {
+			Ok(Protocol::Sar(sar))
+		} else if let Ok(al) = ApproachingLimitWrapper::from_str(spec) {
+			Ok(Protocol::ApproachingLimit(al))
+		} else if let Ok(dm) = DummyMarketWrapper::from_str(spec) {
+			Ok(Protocol::DummyMarket(dm))
+		} else {
+			bail!("Could not convert string to any Protocol\nString: {spec}")
+		}
+	}
+}
+
+impl From<TrailingStop> for ProtocolParams {
+	fn from(ts: TrailingStop) -> Self {
+		ProtocolParams::TrailingStop(ts)
+	}
+}
+impl From<Sar> for ProtocolParams {
+	fn from(sar: Sar) -> Self {
+		ProtocolParams::Sar(sar)
+	}
+}
+impl From<ApproachingLimit> for ProtocolParams {
+	fn from(al: ApproachingLimit) -> Self {
+		ProtocolParams::ApproachingLimit(al)
+	}
+}
+//,}}}
 
 #[cfg(test)]
 mod tests {

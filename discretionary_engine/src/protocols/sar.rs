@@ -19,10 +19,6 @@ use crate::{
 	protocols::{ProtocolOrders, ProtocolTrait, ProtocolType},
 };
 
-const BINANCE_TIMEFRAMES: [&str; 19] = [
-	"1s", "5s", "15s", "30s", "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M",
-];
-
 #[derive(Clone, CompactFormat, Copy, Debug, Default, ProtocolWrapper, derive_new::new)]
 pub struct Sar {
 	start: Percent,
@@ -31,6 +27,9 @@ pub struct Sar {
 	/// NB: Impossible to change dynamically currently (because the websocket connection contains timeframe in its signature)
 	timeframe: Timeframe,
 }
+const BINANCE_TIMEFRAMES: [&str; 19] = [
+	"1s", "5s", "15s", "30s", "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M",
+];
 
 impl ProtocolTrait for SarWrapper {
 	type Params = Sar;

@@ -21,10 +21,6 @@ pub enum RiskCommands {
 	Balance,
 }
 
-fn parse_f64_with_underscores(s: &str) -> Result<f64, std::num::ParseFloatError> {
-	s.replace('_', "").parse()
-}
-
 #[derive(Args, Debug)]
 pub struct SizeArgs {
 	pub ticker: String,
@@ -35,35 +31,6 @@ pub struct SizeArgs {
 	#[arg(short, long)]
 	pub percent_sl: Option<Percent>,
 }
-
-impl Default for SizeArgs {
-	fn default() -> Self {
-		Self {
-			ticker: String::new(),
-			quality: Quality::C,
-			exact_sl: None,
-			percent_sl: None,
-		}
-	}
-}
-
-fn get_exchanges_auth(config: &AppConfig) -> std::collections::HashMap<String, ExchangeAuth> {
-	config
-		.exchanges
-		.iter()
-		.map(|(name, cfg)| {
-			(
-				name.clone(),
-				ExchangeAuth {
-					api_pubkey: cfg.api_pubkey.clone(),
-					api_secret: cfg.api_secret.clone(),
-					passphrase: cfg.passphrase.clone(),
-				},
-			)
-		})
-		.collect()
-}
-
 pub async fn size_main(live_settings: Arc<LiveSettings>, args: SizeArgs) -> Result<()> {
 	let config = live_settings.config()?;
 	let risk_config = config.risk.as_ref().ok_or_else(|| color_eyre::eyre::eyre!("'risk' section missing from config"))?;
@@ -114,7 +81,7 @@ pub async fn size_main(live_settings: Arc<LiveSettings>, args: SizeArgs) -> Resu
 		let time = ema_prev_times_for_same_move(exchanges[0].as_ref(), ticker.symbol, price, sl_percent).await?;
 		let hours = (time.total(Unit::Second).unwrap() as i64 / 3600) as f64;
 		let layer = StopLossProximity::new(time);
-		log!("[RiskLayer::StopLossProximity] EMA time to SL: {:.1}h -> mul={:.3}", hours, layer.mul_criterion());
+		log!("[RiskLayer::StopLossProximity] EMA time to SL: {hours:.1}h -> mul={:.3}", layer.mul_criterion());
 		risk_layers.push(RiskLayer::StopLossProximity(layer));
 	}
 
@@ -152,7 +119,6 @@ pub async fn size_main(live_settings: Arc<LiveSettings>, args: SizeArgs) -> Resu
 	}
 	Ok(())
 }
-
 pub async fn balance_main(live_settings: Arc<LiveSettings>) -> Result<()> {
 	let config = live_settings.config()?;
 	let risk_config = config.risk.as_ref();
@@ -175,4 +141,35 @@ pub async fn balance_main(live_settings: Arc<LiveSettings>) -> Result<()> {
 	let total_balance = get_total_balance(&balances, other_balances);
 	println!("\nTotal: {total_balance}$");
 	Ok(())
+}
+fn parse_f64_with_underscores(s: &str) -> Result<f64, std::num::ParseFloatError> {
+	s.replace('_', "").parse()
+}
+
+impl Default for SizeArgs {
+	fn default() -> Self {
+		Self {
+			ticker: String::new(),
+			quality: Quality::C,
+			exact_sl: None,
+			percent_sl: None,
+		}
+	}
+}
+
+fn get_exchanges_auth(config: &AppConfig) -> std::collections::HashMap<String, ExchangeAuth> {
+	config
+		.exchanges
+		.iter()
+		.map(|(name, cfg)| {
+			(
+				name.clone(),
+				ExchangeAuth {
+					api_pubkey: cfg.api_pubkey.clone(),
+					api_secret: cfg.api_secret.clone(),
+					passphrase: cfg.passphrase.clone(),
+				},
+			)
+		})
+		.collect()
 }

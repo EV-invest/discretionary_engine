@@ -166,6 +166,18 @@ impl PositionFollowup {
 	}
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Hash, PartialEq, Serialize, derive_new::new)]
+pub struct PositionOrderId {
+	pub position_id: Uuid,
+	pub protocol_id: String,
+	pub ordinal: usize,
+}
+impl PositionOrderId {
+	pub fn new_from_protocol_id(position_id: Uuid, poid: ProtocolOrderId) -> Self {
+		Self::new(position_id, poid.protocol_signature, poid.ordinal)
+	}
+}
+
 #[instrument(skip(parent_js))]
 fn init_protocols(parent_js: &mut JoinSet<Result<()>>, protocols: &[Protocol], asset: &str, protocols_side: Side) -> (mpsc::Receiver<ProtocolOrders>, PositionProtocolsDynamicInfo) {
 	let (tx_orders, rx_orders) = mpsc::channel::<ProtocolOrders>(256);
@@ -370,18 +382,6 @@ async fn process_protocol_orders_update(protocol_orders_update: ProtocolOrders, 
 		}
 	}
 	Ok(())
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Hash, PartialEq, Serialize, derive_new::new)]
-pub struct PositionOrderId {
-	pub position_id: Uuid,
-	pub protocol_id: String,
-	pub ordinal: usize,
-}
-impl PositionOrderId {
-	pub fn new_from_protocol_id(position_id: Uuid, poid: ProtocolOrderId) -> Self {
-		Self::new(position_id, poid.protocol_signature, poid.ordinal)
-	}
 }
 
 // pub struct PositionClosed {

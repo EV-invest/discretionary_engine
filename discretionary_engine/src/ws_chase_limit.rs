@@ -22,40 +22,6 @@ use tracing::info;
 use ustr::Ustr;
 use v_utils::{log, trades::Timeframe};
 
-/// Format quantity string based on step size to avoid "Qty invalid" errors
-fn format_qty(qty: f64, qty_step: f64) -> String {
-	if qty_step >= 1.0 {
-		format!("{:.0}", qty)
-	} else if qty_step >= 0.1 {
-		format!("{:.1}", qty)
-	} else if qty_step >= 0.01 {
-		format!("{:.2}", qty)
-	} else if qty_step >= 0.001 {
-		format!("{:.3}", qty)
-	} else if qty_step >= 0.0001 {
-		format!("{:.4}", qty)
-	} else {
-		format!("{:.6}", qty)
-	}
-}
-
-/// Format price string based on tick size
-fn format_price(price: f64, tick_size: f64) -> String {
-	if tick_size >= 1.0 {
-		format!("{:.0}", price)
-	} else if tick_size >= 0.1 {
-		format!("{:.1}", price)
-	} else if tick_size >= 0.01 {
-		format!("{:.2}", price)
-	} else if tick_size >= 0.001 {
-		format!("{:.3}", price)
-	} else if tick_size >= 0.0001 {
-		format!("{:.4}", price)
-	} else {
-		format!("{:.6}", price)
-	}
-}
-
 /// Executes an order using WebSocket-based chase-limit strategy
 ///
 /// # Arguments
@@ -610,4 +576,37 @@ pub async fn execute_ws_chase_limit(
 
 	log!("Chase-limit execution completed: filled {filled_qty} out of {target_qty}");
 	Ok(filled_qty)
+}
+/// Format quantity string based on step size to avoid "Qty invalid" errors
+fn format_qty(qty: f64, qty_step: f64) -> String {
+	if qty_step >= 1.0 {
+		format!("{qty:.0}")
+	} else if qty_step >= 0.1 {
+		format!("{qty:.1}")
+	} else if qty_step >= 0.01 {
+		format!("{qty:.2}")
+	} else if qty_step >= 0.001 {
+		format!("{qty:.3}")
+	} else if qty_step >= 0.0001 {
+		format!("{qty:.4}")
+	} else {
+		format!("{qty:.6}")
+	}
+}
+
+/// Format price string based on tick size
+fn format_price(price: f64, tick_size: f64) -> String {
+	if tick_size >= 1.0 {
+		format!("{price:.0}")
+	} else if tick_size >= 0.1 {
+		format!("{price:.1}")
+	} else if tick_size >= 0.01 {
+		format!("{price:.2}")
+	} else if tick_size >= 0.001 {
+		format!("{price:.3}")
+	} else if tick_size >= 0.0001 {
+		format!("{price:.4}")
+	} else {
+		format!("{price:.6}")
+	}
 }

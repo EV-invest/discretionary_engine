@@ -90,6 +90,7 @@ async fn main() -> Result<()> {
 
 			info!("Listening for commands (Ctrl+C to exit)...");
 
+			//LOOP: main loop
 			loop {
 				tokio::select! {
 					result = subscriber.next() => {

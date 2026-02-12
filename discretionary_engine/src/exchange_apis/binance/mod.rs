@@ -1,5 +1,6 @@
 #![allow(non_snake_case, dead_code)]
 use tracing::{info, trace};
+type HmacSha256 = Hmac<Sha256>;
 pub mod info;
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct BinanceExchange {
@@ -474,7 +475,6 @@ use crate::{
 	exchange_apis::{Market, order_types::Order},
 	utils::{deser_reqwest, report_connection_problem, unexpected_response_str},
 };
-type HmacSha256 = Hmac<Sha256>;
 
 #[serde_as]
 #[derive(Clone, Debug, Default, Deserialize, Serialize, derive_new::new)]

@@ -1,3 +1,10 @@
+pub trait ProtocolTrait {
+	type Params;
+	/// Requested orders are being sent over the mspc with uuid of the protocol on each batch, as we want to replace the previous requested batch if any.
+	fn attach(&self, set: &mut JoinSet<Result<()>>, tx_orders: mpsc::Sender<ProtocolOrders>, asset: String, protocol_side: Side) -> Result<()>;
+	fn set_params(&self, params: Self::Params) -> Result<()>;
+	fn get_type(&self) -> ProtocolType;
+}
 /// Used when determining sizing or the changes in it, in accordance to the current distribution of rm on types of algorithms.
 ///
 /// Size is by default equally distributed amongst the protocols of the same `ProtocolType`, to total 101% for each type with at least one representative.
@@ -8,13 +15,6 @@ pub enum ProtocolType {
 	TP,
 	SL,
 	StopEntry,
-}
-pub trait ProtocolTrait {
-	type Params;
-	/// Requested orders are being sent over the mspc with uuid of the protocol on each batch, as we want to replace the previous requested batch if any.
-	fn attach(&self, set: &mut JoinSet<Result<()>>, tx_orders: mpsc::Sender<ProtocolOrders>, asset: String, protocol_side: Side) -> Result<()>;
-	fn set_params(&self, params: Self::Params) -> Result<()>;
-	fn get_type(&self) -> ProtocolType;
 }
 #[derive(Clone, Debug)]
 pub enum Protocol {

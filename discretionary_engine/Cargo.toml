@@ -32,6 +32,7 @@ futures-util = "0.3.31"
 hex = "^0.4.3"
 hmac = "^0.12.1"
 jiff = { workspace = true }
+miette.workspace = true
 nautilus-bybit = { path = "../libs/nautilus_trader/crates/adapters/bybit", default-features = false }
 nautilus-model = { path = "../libs/nautilus_trader/crates/model" }
 rand = { version = "0.9.2", features = ["small_rng"] }

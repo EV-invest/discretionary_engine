@@ -38,12 +38,16 @@ struct SubmitArgs {
 	/// It's engine's job to determine what pair and exchange to utilize
 	//TODO!!!: allow providing a more precise primitive here (eg with Market, or with Market and Exchange); in which case it should understand that we want to skip engine suggestions for those, and for it to just accept the defined part of selection.
 	#[arg(short, long)]
-	coin: String,
+	asset: String,
 	/// protocols parameters, in the format of "<protocol>-<params>", e.g. "ts:p0.5".
 	/// Params consist of their starting letter followed by the value, e.g. "p0.5" for 0.5% offset. If multiple params are required, they are separated by '-'.
 	/// For more info, reference [CompactFormat](v_utils::macros::CompactFormat)
+	/// closing protocols
 	#[arg(short, long)]
-	protocols: Vec<String>,
+	closing: Vec<String>,
+	/// opening protocols
+	#[arg(short, long)]
+	opening: Vec<String>,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -61,10 +65,10 @@ fn build_cli_string(args: &SubmitArgs, testnet: bool) -> String {
 
 	parts.push("submit".to_string());
 	parts.push(format!("-s {}", args.size_usdt));
-	parts.push(format!("-c {}", args.coin));
+	parts.push(format!("-c {}", args.asset));
 
 	for p in &args.protocols {
-		parts.push(format!("-a {p}"));
+		parts.push(format!("-a {p}")); //XXX: breaks everything
 	}
 
 	parts.join(" ")
@@ -72,9 +76,7 @@ fn build_cli_string(args: &SubmitArgs, testnet: bool) -> String {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-	color_eyre::install()?;
-
-	tracing_subscriber::fmt().with_max_level(LevelFilter::INFO).with_target(false).compact().init();
+	v_utils::clientside!();
 
 	let cli = Cli::parse();
 

@@ -106,6 +106,7 @@ use positions::*;
 use tokio::{sync::mpsc, task::JoinSet};
 use tracing::{info, instrument};
 use v_utils::{
+	log,
 	trades::{Side, Timeframe},
 	utils::exit_on_error,
 };
@@ -190,15 +191,8 @@ struct PositionArgs {
 #[instrument(skip(live_settings, tx, exchanges_arc))]
 async fn command_new(position_args: PositionArgs, live_settings: Arc<LiveSettings>, tx: mpsc::Sender<PositionToHub>, exchanges_arc: Arc<Exchanges>) -> Result<()> {
 	// Currently here mostly for purposes of checking server connectivity.
-	let balance = match Exchanges::compile_total_balance(exchanges_arc.clone(), live_settings.clone()).await {
-		Ok(b) => b,
-		Err(e) => {
-			eprintln!("Failed to get balance: {e}");
-			std::process::exit(1);
-		}
-	};
-	info!("Total balance: {balance}");
-	println!("Current total available balance: {balance}");
+	let balance = exit_on_error(Exchanges::compile_total_balance(exchanges_arc.clone(), live_settings.clone()).await);
+	log!("Current total available balance: {balance}");
 
 	let (side, target_size) = match position_args.size_usdt {
 		s if s > 0.0 => (Side::Buy, s),

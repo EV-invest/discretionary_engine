@@ -28,6 +28,7 @@ serde = { version = "^1.0.228", features = ["derive"] }
 smart-default = "^0.7.1"
 snapshot_fonts = "1.2.0"
 strum = { version = "0.27", features = ["derive"] }
+miette = { version = "7.6.0", features = ["fancy", "serde", "syntect-highlighter"] }
 tracing = { version = "^0.1.44", features = ["log", "std", "async-await"] }
 v_exchanges = { version = "^0.16.7", features = ["full"] }
 v_utils = { version = "2.15.11", features = ["full"] }

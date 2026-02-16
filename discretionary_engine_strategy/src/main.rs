@@ -39,9 +39,16 @@ struct SubmitArgs {
 	//TODO!!!: allow providing a more precise primitive here (eg with Market, or with Market and Exchange); in which case it should understand that we want to skip engine suggestions for those, and for it to just accept the defined part of selection.
 	#[arg(short, long)]
 	asset: String,
-	/// protocols parameters, in the format of "<protocol>-<params>", e.g. "ts:p0.5".
-	/// Params consist of their starting letter followed by the value, e.g. "p0.5" for 0.5% offset. If multiple params are required, they are separated by '-'.
-	/// For more info, reference [CompactFormat](v_utils::macros::CompactFormat)
+	#[command(flatten)]
+	protocols: ProtocolArgs,
+}
+
+#[derive(Args, Clone, Debug)]
+#[command(
+	next_help_heading = "Protocols",
+	after_help = "Protocol format: \"<protocol>:<params>\", e.g. \"ts:p0.5\".\nParams consist of their starting letter followed by the value, e.g. \"p0.5\" for 0.5% offset.\nIf multiple params are required, they are separated by '-'. See CompactFormat (v_utils::macros)."
+)]
+struct ProtocolArgs {
 	/// closing protocols
 	#[arg(short, long)]
 	closing: Vec<String>,
@@ -67,8 +74,12 @@ fn build_cli_string(args: &SubmitArgs, testnet: bool) -> String {
 	parts.push(format!("-s {}", args.size_usdt));
 	parts.push(format!("-c {}", args.asset));
 
-	for p in &args.protocols {
-		parts.push(format!("-a {p}")); //XXX: breaks everything
+	//HACK: awaits rewrite of our local logic; to move away from "position stages"
+	for p in &args.protocols.opening {
+		parts.push(format!("-a {p}"));
+	}
+	for p in &args.protocols.closing {
+		parts.push(format!("-f {p}"));
 	}
 
 	parts.join(" ")
@@ -119,7 +130,8 @@ async fn main() -> Result<()> {
 		}
 		Commands::Submit(args) => {
 			// Validate protocols first
-			let _protocols = interpret_protocol_specs(args.protocols.clone()).wrap_err("Invalid protocols")?;
+			let _closing = interpret_protocol_specs(args.protocols.closing.clone()).wrap_err("Invalid closing protocols")?;
+			let _opening = interpret_protocol_specs(args.protocols.opening.clone()).wrap_err("Invalid opening protocols")?;
 
 			// Build CLI string and publish to Redis
 			let cli_string = build_cli_string(&args, cli.testnet);

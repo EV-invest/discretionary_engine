@@ -1,9 +1,9 @@
 use clap::{Args, Parser, Subcommand};
 use color_eyre::eyre::{Result, WrapErr};
-use discretionary_engine_strategy::{protocols::interpret_protocol_specs, redis_bus};
 use futures_util as _;
 use nautilus_bybit as _;
 use nautilus_model as _;
+use strategy::{protocols::interpret_protocol_specs, redis_bus};
 use tracing::{info, level_filters::LevelFilter};
 
 #[derive(Parser)]

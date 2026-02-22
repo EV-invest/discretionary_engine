@@ -69,15 +69,15 @@ async fn main() -> Result<()> {
 		Commands::Strategy { command } => {
 			let redis_port = live_settings.config()?.strategy.as_ref().map(|s| s.redis_port).unwrap_or(6379);
 			match command {
-				StrategyCommands::Start => discretionary_engine_strategy::commands::start_listener(redis_port).await,
+				StrategyCommands::Start => strategy::commands::start_listener(redis_port).await,
 				StrategyCommands::Submit(args) => {
-					let submit_args = discretionary_engine_strategy::commands::SubmitArgs {
+					let submit_args = strategy::commands::SubmitArgs {
 						size_usdt: args.size_usdt,
 						coin: args.coin,
 						protocols: args.protocols,
 						testnet: cli.testnet,
 					};
-					discretionary_engine_strategy::commands::submit(submit_args, redis_port).await
+					strategy::commands::submit(submit_args, redis_port).await
 				}
 			}
 		}

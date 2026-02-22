@@ -6,10 +6,15 @@ use std::{
 
 use clap::ValueEnum;
 use color_eyre::eyre::{Result, bail, eyre};
+#[cfg(test)]
+use insta as _;
 use jiff::{Span, Timestamp, Unit};
+use miette as _;
 use secrecy::SecretString;
 use strum::{EnumCount, EnumIter, IntoEnumIterator};
+use tokio as _;
 use tracing::debug;
+use tracing_subscriber as _;
 use v_exchanges::core::{Exchange, ExchangeName, Instrument, Symbol};
 use v_utils::{Percent, percent::PercentU, trades::*};
 
@@ -27,6 +32,9 @@ pub enum Quality {
 	/// clear inefficiency AND entry within a clearly defined strategy AND strategy is historically profitable
 	B,
 	/// (entry within a clearly defined strategy AND strategy is historically profitable) OR (clear inefficiency)
+	///
+	/// NB: tends to be the most dangerous one. Already large enough to be felt, and much more common than the higher tiers; which leads to it ending up dominating %volume. And it's really tricky to trade this profitably consistently. In reality ends up blowing up risk while adding little (if anything) to flat EV.
+	/// HINT: One of the telltale signs of most problematic types of this tier, is feeling that "it could evolve into something great". At higher tiers you usually get a feeling that formation is "complete" (even if scary), while large part of the reason for overtrading of `C` situaions, is hope and FOMO.
 	C,
 	/// looks good
 	D,
@@ -36,6 +44,8 @@ pub enum Quality {
 
 /// Risk tiers used for actual sizing. Rather deterministic rules for mapping to exact value from having this selected.
 /// Only deterministic quantities like fees or expected slippage are applied from here on, to get the final size submitted to the execution engine.
+///
+/// Basically just [bucketing concept from poker](https://blog.gtowizard.com/the-magic-of-equity-buckets/)
 #[derive(Clone, Copy, Debug, EnumCount, EnumIter, Eq, Ord, PartialEq, PartialOrd)]
 pub enum RiskTier {
 	A,

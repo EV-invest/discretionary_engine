@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use clap::{Args, Subcommand};
 use color_eyre::eyre::Result;
-use discretionary_engine_risk::{
+use jiff::Unit;
+use risk::{
 	ExchangeAuth, FromPhone, LostLastTrade, Quality, RiskLayer, RiskTier, StopLossProximity, apply_risk_layers, apply_round_bias, collect_balances, ema_prev_times_for_same_move,
 	get_total_balance, initialize_exchanges,
 };
-use jiff::Unit;
 use tracing::debug;
 use v_exchanges::core::Ticker;
 use v_utils::{Percent, log};

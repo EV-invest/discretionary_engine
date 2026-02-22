@@ -1,5 +1,5 @@
 [package]
-name = "discretionary_engine_strategy"
+name = "strategy"
 version = "1.0.0"
 edition = "2024"
 

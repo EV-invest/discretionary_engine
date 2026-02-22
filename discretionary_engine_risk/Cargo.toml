@@ -1,5 +1,5 @@
 [package]
-name = "discretionary_engine_risk"
+name = "risk"
 version = "1.0.0"
 edition = "2024"
 
@@ -10,6 +10,7 @@ homepage = "https://github.com/valeratrades/discretionary_engine"
 authors = ["valeratrades"]
 description = "Risk-management library for discretionary_engine"
 readme = "README.md"
+build = "build.rs"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
@@ -18,9 +19,12 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 clap = { workspace = true }
 color-eyre = { workspace = true }
 jiff = { workspace = true }
+miette = { workspace = true }
 secrecy = { workspace = true }
 strum = { workspace = true }
+tokio = { version = "^1.49.0", features = ["full", "signal"] }
 tracing = { workspace = true }
+tracing-subscriber = { version = "^0.3.22", features = ["fmt", "env-filter"] }
 v_exchanges = { workspace = true, features = ["binance", "bybit", "kucoin", "mexc"] }
 v_utils = { workspace = true, features = ["trades"] }
 

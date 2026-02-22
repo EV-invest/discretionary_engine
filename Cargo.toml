@@ -18,20 +18,20 @@ undocumented_unsafe_blocks = "warn"
 tabs_in_doc_comments = "allow"
 
 [workspace.dependencies]
-clap = { version = "^4.5.53", features = ["derive", "env"] }
+clap = { version = "^4.5.60", features = ["derive", "env"] }
 color-eyre = "^0.6.5"
 derive_more = { version = "^2.1.1", features = ["from_str", "display", "from", "deref", "deref_mut"] }
-insta = { version = "1.45.0", features = ["json"] }
-jiff = "^0.2.17"
+insta = { version = "1.46.3", features = ["json"] }
+jiff = "^0.2.20"
 miette = { version = "7.6.0", features = ["fancy", "serde", "syntect-highlighter"] }
 secrecy = { version = "0.10.3", features = ["serde"] }
 serde = { version = "^1.0.228", features = ["derive"] }
 smart-default = "^0.7.1"
 snapshot_fonts = "1.2.0"
-strum = { version = "0.27", features = ["derive"] }
+strum = { version = "0.28", features = ["derive"] }
 tracing = { version = "^0.1.44", features = ["log", "std", "async-await"] }
-v_exchanges = { version = "^0.16.7", features = ["full"] }
-v_utils = { version = "2.15.11", features = ["full"] }
+v_exchanges = { version = "^0.16.8", features = ["full"] }
+v_utils = { version = "2.15.29", features = ["full"] }
 
 #dbg: \
 [patch.crates-io]

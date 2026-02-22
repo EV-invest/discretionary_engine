@@ -5,8 +5,8 @@ extern crate clap;
 pub const EXE_NAME: &str = "discretionary_engine";
 
 use color_eyre::eyre::{Result, eyre};
-pub use discretionary_engine_strategy::config::*;
 use secrecy::SecretString;
+pub use strategy::config::*;
 use v_exchanges::ExchangeName;
 use v_utils::{Percent, macros as v_macros, percent::PercentU};
 

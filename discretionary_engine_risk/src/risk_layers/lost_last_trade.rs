@@ -1,5 +1,6 @@
 use v_utils::{Percent, percent::PercentU};
 
+//TODO!!!: implement a metric to judge past perf through
 use super::RiskLayerResult;
 
 /// Risk layer that reduces size after a losing trade.

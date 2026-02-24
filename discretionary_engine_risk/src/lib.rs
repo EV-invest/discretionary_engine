@@ -1,23 +1,20 @@
-use std::{
-	collections::HashMap,
-	ops::{Add, Sub},
-	str::FromStr,
-};
+use std::ops::{Add, Sub};
 
 use clap::ValueEnum;
-use color_eyre::eyre::{Result, bail, eyre};
+use color_eyre::eyre::{Result, bail};
 #[cfg(test)]
 use insta as _;
 use jiff::{Span, Timestamp, Unit};
 use miette as _;
-use secrecy::SecretString;
 use strum::{EnumCount, EnumIter, IntoEnumIterator};
 use tokio as _;
 use tracing::debug;
 use tracing_subscriber as _;
-use v_exchanges::core::{Exchange, ExchangeName, Instrument, Symbol};
+use v_exchanges::core::{Exchange, Symbol};
 use v_utils::{Percent, percent::PercentU, trades::*};
 
+pub mod balance;
+pub mod config;
 pub mod risk_layers;
 pub use risk_layers::{FromPhone, LostLastTrade, RiskLayer, StopLossProximity, apply_risk_layers};
 
@@ -115,59 +112,6 @@ impl From<Quality> for RiskTier {
 			Quality::T => RiskTier::T,
 		}
 	}
-}
-
-/// Exchange configuration for risk module
-#[derive(Clone, Debug)]
-pub struct ExchangeAuth {
-	pub api_pubkey: String,
-	pub api_secret: SecretString,
-	pub passphrase: Option<SecretString>,
-}
-
-pub fn initialize_exchanges(exchanges_config: &HashMap<String, ExchangeAuth>) -> Result<Vec<Box<dyn Exchange>>> {
-	let mut exchanges: Vec<Box<dyn Exchange>> = Vec::new();
-	for (name, exchange_config) in exchanges_config {
-		let exchange_name = ExchangeName::from_str(name)?;
-		let mut exchange = exchange_name.init_client();
-		exchange.auth(exchange_config.api_pubkey.clone(), exchange_config.api_secret.clone());
-		exchange.set_max_tries(3);
-		exchange.set_recv_window(std::time::Duration::from_secs(15));
-
-		// special case: KuCoin requires a passphrase
-		if exchange_name == ExchangeName::Kucoin {
-			let passphrase = exchange_config.passphrase.clone().ok_or_else(|| eyre!("Kucoin exchange requires passphrase in config"))?;
-			exchange.update_default_option(v_exchanges::kucoin::KucoinOption::Passphrase(passphrase));
-		}
-
-		exchanges.push(exchange);
-	}
-	Ok(exchanges)
-}
-
-pub async fn collect_balances(exchanges: &[Box<dyn Exchange>]) -> Result<HashMap<String, Usd>> {
-	let mut balances = HashMap::new();
-	for exchange in exchanges {
-		let balance = exchange.balances(Instrument::Perp, None).await.unwrap();
-		let name = exchange.name().to_string();
-		tracing::debug!("Per-Exchange balances: {name}: {balance:?}");
-		balances.insert(name, balance.total);
-	}
-	Ok(balances)
-}
-
-pub fn get_total_balance(balances: &HashMap<String, Usd>, other_balances: Option<f64>) -> Usd {
-	let mut total_balance = Usd(0.);
-	for balance in balances.values() {
-		total_balance += *balance;
-	}
-
-	// Add other balances if configured
-	if let Some(other) = other_balances {
-		total_balance = Usd(*total_balance + other);
-	}
-
-	total_balance
 }
 
 /// Returns EMA over previous 10 last moves of the same distance.

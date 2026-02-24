@@ -18,9 +18,11 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 [dependencies]
 clap = { workspace = true }
 color-eyre = { workspace = true }
+discretionary_engine_core = { path = "../discretionary_engine_core" }
 jiff = { workspace = true }
 miette = { workspace = true }
-secrecy = { workspace = true }
+
+smart-default = { workspace = true }
 snapshot_fonts.workspace = true
 strum = { workspace = true }
 tokio = { version = "^1.49.0", features = ["full", "signal"] }

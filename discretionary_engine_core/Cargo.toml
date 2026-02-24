@@ -1,0 +1,13 @@
+[package]
+name = "discretionary_engine_core"
+version = "0.1.0"
+edition = "2024"
+description = "Shared types for discretionary_engine"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+secrecy = { workspace = true }
+v_utils = { workspace = true }
+
+[lints]
+workspace = true

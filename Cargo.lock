@@ -1103,6 +1103,7 @@ dependencies = [
  "derive-new",
  "derive_more",
  "dirs",
+ "discretionary_engine_core",
  "discretionary_engine_macros",
  "eyre",
  "function_name",
@@ -1140,6 +1141,14 @@ dependencies = [
  "ustr",
  "uuid",
  "v_exchanges",
+ "v_utils",
+]
+
+[[package]]
+name = "discretionary_engine_core"
+version = "0.1.0"
+dependencies = [
+ "secrecy",
  "v_utils",
 ]
 
@@ -3408,10 +3417,11 @@ version = "1.0.0"
 dependencies = [
  "clap",
  "color-eyre",
+ "discretionary_engine_core",
  "insta",
  "jiff",
  "miette",
- "secrecy",
+ "smart-default",
  "snapshot_fonts",
  "strum 0.28.0",
  "tokio",

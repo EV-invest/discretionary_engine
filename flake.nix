@@ -25,7 +25,7 @@
         rs = v-utils.rs {
           inherit pkgs rust;
           cranelift = false; # cranelift disabled due to aws-lc-rs incompatibility
-          tracey = true;
+          tracey = false; # feels raw. And kinda pointless, as I don't see shit enforced. Might not understand it well enough, but starting to think it superflous
           build = {
             enable = true;
             workspace = {
@@ -44,7 +44,11 @@
           lastSupportedVersion = "nightly-2025-10-12";
           jobs.default = true;
           langs = [ "rs" ];
-          labels.extra = [{ name = "rm"; color = "0000ff"; }];
+          labels.extra = [
+            # I think I should be grouping labels through color, right
+            { name = "rm"; color = "0000ff"; description = "risk management side"; }
+            { name = "integrations"; color = "20603D"; description = "all things related to how we access the underlying "; }
+          ];
         };
         readme = v-utils.readme-fw { inherit pkgs pname; defaults = true; lastSupportedVersion = "nightly-1.92"; rootDir = ./.; badges = [ "msrv" "crates_io" "docs_rs" "loc" "ci" ]; };
       in

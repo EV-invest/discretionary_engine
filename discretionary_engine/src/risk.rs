@@ -40,7 +40,7 @@ pub async fn size_main(live_settings: Arc<LiveSettings>, args: SizeArgs) -> Resu
 
 	let exchanges = initialize_exchanges(&config.exchanges)?;
 	let balances = collect_balances(&exchanges).await?;
-	let total_balance = get_total_balance(&balances, risk_config.other_balances);
+	let total_balance = get_total_balance(&balances, risk_config.other_balances.as_ref());
 
 	// Use the first exchange for price lookup
 	let price = exchanges[0].price(ticker.symbol).await.unwrap();
@@ -121,7 +121,7 @@ pub async fn size_main(live_settings: Arc<LiveSettings>, args: SizeArgs) -> Resu
 }
 pub async fn balance_main(live_settings: Arc<LiveSettings>) -> Result<(), RiskError> {
 	let config = live_settings.config().map_err(|e| eyre::eyre!(e))?;
-	let other_balances = config.risk.as_ref().and_then(|r| r.other_balances);
+	let other_balances = config.risk.as_ref().and_then(|r| r.other_balances.as_ref());
 	risk::balance::main(&config.exchanges, other_balances).await
 }
 fn parse_f64_with_underscores(s: &str) -> Result<f64, std::num::ParseFloatError> {

@@ -27,7 +27,7 @@ impl v_utils::utils::SysexitCode for RiskError {
 }
 
 #[instrument]
-pub async fn main(exchanges: &HashMap<String, ExchangeConfig>, other_balances: Option<f64>) -> Result<(), RiskError> {
+pub async fn main(exchanges: &HashMap<String, ExchangeConfig>, other_balances: Option<&HashMap<String, f64>>) -> Result<(), RiskError> {
 	let exchanges = initialize_exchanges(exchanges)?;
 	let balances = collect_balances(&exchanges).await?;
 
@@ -36,6 +36,11 @@ pub async fn main(exchanges: &HashMap<String, ExchangeConfig>, other_balances: O
 
 	for (key, balance) in sorted_balances {
 		println!("{key}: {balance}$");
+	}
+
+	let other_sum = other_balances.map(|m| m.values().sum::<f64>()).filter(|s| *s != 0.0);
+	if let Some(sum) = other_sum {
+		println!("other: {sum}$");
 	}
 
 	let total_balance = get_total_balance(&balances, other_balances);
@@ -99,13 +104,13 @@ pub async fn collect_balances(exchanges: &[Box<dyn Exchange>]) -> Result<HashMap
 }
 
 #[instrument(skip_all)]
-pub fn get_total_balance(balances: &HashMap<String, Usd>, other_balances: Option<f64>) -> Usd {
+pub fn get_total_balance(balances: &HashMap<String, Usd>, other_balances: Option<&HashMap<String, f64>>) -> Usd {
 	let mut total = Usd(0.);
 	for balance in balances.values() {
 		total += *balance;
 	}
-	if let Some(other) = other_balances {
-		total = Usd(*total + other);
+	if let Some(others) = other_balances {
+		total = Usd(*total + others.values().sum::<f64>());
 	}
 	total
 }

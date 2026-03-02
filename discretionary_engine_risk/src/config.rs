@@ -14,7 +14,7 @@ pub struct AppConfig {
 pub struct RiskConfig {
 	#[settings(flatten)]
 	pub size: Option<SizeConfig>,
-	pub other_balances: Option<f64>,
+	pub other_balances: Option<HashMap<String, f64>>,
 }
 
 #[derive(Clone, Debug, Default, v_macros::MyConfigPrimitives, v_macros::SettingsNested)]

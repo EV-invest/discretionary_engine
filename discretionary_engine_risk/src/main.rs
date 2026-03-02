@@ -35,7 +35,7 @@ async fn main() {
 		}
 		Commands::Balance => {
 			let config = exit_on_error(live_settings.config());
-			let other_balances = config.risk.as_ref().and_then(|r| r.other_balances);
+			let other_balances = config.risk.as_ref().and_then(|r| r.other_balances.as_ref());
 			exit_on_error(risk::balance::main(&config.exchanges, other_balances).await);
 		}
 	}

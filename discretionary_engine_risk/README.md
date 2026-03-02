@@ -15,7 +15,7 @@ Config is in `~/.config/discretionary_engine.nix` under the `risk` section. Exam
   # ... other discretionary_engine config ...
 
   risk = {
-    # other_balances = 1000.0;  # balances not tracked on exchanges
+    # other_balances = { coinpoker = 75; polymarket = 100; };  # balances not tracked on exchanges
     size = {
       default_sl = 0.02;
       round_bias = "5%";

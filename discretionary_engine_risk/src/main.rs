@@ -31,7 +31,7 @@ async fn main() {
 
 	match cli.command {
 		Commands::Size => {
-			todo!();
+			unimplemented!("call through [main entrypoint](../../discretionary_engine/src/main.rs)")
 		}
 		Commands::Balance => {
 			let config = exit_on_error(live_settings.config());

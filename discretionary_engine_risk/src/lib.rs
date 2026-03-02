@@ -18,7 +18,7 @@ pub mod config;
 pub mod risk_layers;
 pub use risk_layers::{FromPhone, LostLastTrade, RiskLayer, StopLossProximity, apply_risk_layers};
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, ValueEnum)]
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd, ValueEnum)]
 /// Quality of the trade setup
 ///
 /// NB: can't choose based on what you feel like, - consult with exact criteria provided for each
@@ -36,6 +36,7 @@ pub enum Quality {
 	/// looks good
 	D,
 	/// random test (uses exchange min size)
+	#[default]
 	T,
 }
 

@@ -22,7 +22,7 @@ pub enum RiskCommands {
 	Balance,
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Default)]
 pub struct SizeArgs {
 	pub ticker: String,
 	#[arg(short, long)]
@@ -122,19 +122,8 @@ pub async fn size_main(live_settings: Arc<LiveSettings>, args: SizeArgs) -> Resu
 pub async fn balance_main(live_settings: Arc<LiveSettings>) -> Result<()> {
 	let config = live_settings.config()?;
 	let other_balances = config.risk.as_ref().and_then(|r| r.other_balances);
-	risk::balance::balance_main(&config.exchanges, other_balances).await
+	risk::balance::main(&config.exchanges, other_balances).await
 }
 fn parse_f64_with_underscores(s: &str) -> Result<f64, std::num::ParseFloatError> {
 	s.replace('_', "").parse()
-}
-
-impl Default for SizeArgs {
-	fn default() -> Self {
-		Self {
-			ticker: String::new(),
-			quality: Quality::C,
-			exact_sl: None,
-			percent_sl: None,
-		}
-	}
 }

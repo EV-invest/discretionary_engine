@@ -5,7 +5,6 @@ use v_utils::{Percent, macros as v_macros, percent::PercentU};
 
 #[derive(Clone, Debug, v_macros::LiveSettings, v_macros::MyConfigPrimitives, v_macros::Settings)]
 pub struct AppConfig {
-	#[serde(default)]
 	pub exchanges: HashMap<String, ExchangeConfig>,
 	#[settings(flatten)]
 	pub risk: Option<RiskConfig>,

@@ -2,10 +2,15 @@ use std::{collections::HashMap, str::FromStr};
 
 use color_eyre::eyre::{Result, eyre};
 use discretionary_engine_core::config::ExchangeConfig;
+use tracing::instrument;
 use v_exchanges::core::{Exchange, ExchangeName, Instrument};
 use v_utils::trades::Usd;
 
+#[instrument(skip_all)]
 pub fn initialize_exchanges(exchanges: &HashMap<String, ExchangeConfig>) -> Result<Vec<Box<dyn Exchange>>> {
+	if exchanges.is_empty() {
+		tracing::warn!("No exchanges configured");
+	}
 	let mut out: Vec<Box<dyn Exchange>> = Vec::new();
 	for (name, auth) in exchanges {
 		let exchange_name = ExchangeName::from_str(name)?;
@@ -24,17 +29,18 @@ pub fn initialize_exchanges(exchanges: &HashMap<String, ExchangeConfig>) -> Resu
 	Ok(out)
 }
 
+#[instrument(skip_all)]
 pub async fn collect_balances(exchanges: &[Box<dyn Exchange>]) -> Result<HashMap<String, Usd>> {
 	let mut balances = HashMap::new();
 	for exchange in exchanges {
-		let balance = exchange.balances(Instrument::Perp, None).await.unwrap();
 		let name = exchange.name().to_string();
-		tracing::debug!("Per-Exchange balances: {name}: {balance:?}");
+		let balance = exchange.balances(Instrument::Perp, None).await.unwrap();
 		balances.insert(name, balance.total);
 	}
 	Ok(balances)
 }
 
+#[instrument(skip_all)]
 pub fn get_total_balance(balances: &HashMap<String, Usd>, other_balances: Option<f64>) -> Usd {
 	let mut total = Usd(0.);
 	for balance in balances.values() {
@@ -46,6 +52,7 @@ pub fn get_total_balance(balances: &HashMap<String, Usd>, other_balances: Option
 	total
 }
 
+#[instrument]
 pub async fn balance_main(exchanges: &HashMap<String, ExchangeConfig>, other_balances: Option<f64>) -> Result<()> {
 	let exchanges = initialize_exchanges(exchanges)?;
 	let balances = collect_balances(&exchanges).await?;
@@ -54,7 +61,7 @@ pub async fn balance_main(exchanges: &HashMap<String, ExchangeConfig>, other_bal
 	sorted_balances.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
 
 	for (key, balance) in sorted_balances {
-		println!("{key}: {balance}$");
+		println!("{key}: {balance}$"); // flush prematurely, as networking is the bottleneck. So showing faster is noticeable.
 	}
 
 	let total_balance = get_total_balance(&balances, other_balances);

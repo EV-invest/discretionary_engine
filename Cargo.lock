@@ -3424,6 +3424,7 @@ dependencies = [
  "smart-default",
  "snapshot_fonts",
  "strum 0.28.0",
+ "thiserror",
  "tokio",
  "tracing",
  "tracing-subscriber",

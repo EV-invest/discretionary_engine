@@ -26,6 +26,7 @@ smart-default = { workspace = true }
 snapshot_fonts.workspace = true
 strum = { workspace = true }
 tokio = { version = "^1.49.0", features = ["full", "signal"] }
+thiserror = "2"
 tracing = { workspace = true }
 tracing-subscriber = { version = "^0.3.22", features = ["fmt", "env-filter"] }
 v_exchanges = { workspace = true, features = ["binance", "bybit", "kucoin", "mexc"] }

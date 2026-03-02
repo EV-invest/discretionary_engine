@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use clap::{Args, Subcommand};
-use color_eyre::eyre::Result;
+use color_eyre::eyre;
 use jiff::Unit;
 use risk::{
 	FromPhone, LostLastTrade, Quality, RiskLayer, RiskTier, StopLossProximity, apply_risk_layers, apply_round_bias,
-	balance::{collect_balances, get_total_balance, initialize_exchanges},
+	balance::{RiskError, collect_balances, get_total_balance, initialize_exchanges},
 	ema_prev_times_for_same_move,
 };
 use tracing::debug;
@@ -32,8 +32,8 @@ pub struct SizeArgs {
 	#[arg(short, long)]
 	pub percent_sl: Option<Percent>,
 }
-pub async fn size_main(live_settings: Arc<LiveSettings>, args: SizeArgs) -> Result<()> {
-	let config = live_settings.config()?;
+pub async fn size_main(live_settings: Arc<LiveSettings>, args: SizeArgs) -> Result<(), RiskError> {
+	let config = live_settings.config().map_err(|e| eyre::eyre!(e))?;
 	let risk_config = config.risk.as_ref().ok_or_else(|| color_eyre::eyre::eyre!("'risk' section missing from config"))?;
 	let size_config = risk_config.size.as_ref().ok_or_else(|| color_eyre::eyre::eyre!("'risk.size' section missing from config"))?;
 	let ticker: Ticker = args.ticker.parse()?;
@@ -119,8 +119,8 @@ pub async fn size_main(live_settings: Arc<LiveSettings>, args: SizeArgs) -> Resu
 	}
 	Ok(())
 }
-pub async fn balance_main(live_settings: Arc<LiveSettings>) -> Result<()> {
-	let config = live_settings.config()?;
+pub async fn balance_main(live_settings: Arc<LiveSettings>) -> Result<(), RiskError> {
+	let config = live_settings.config().map_err(|e| eyre::eyre!(e))?;
 	let other_balances = config.risk.as_ref().and_then(|r| r.other_balances);
 	risk::balance::main(&config.exchanges, other_balances).await
 }

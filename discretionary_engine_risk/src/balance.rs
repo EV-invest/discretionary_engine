@@ -3,11 +3,31 @@ use std::{collections::HashMap, str::FromStr};
 use color_eyre::eyre::{Result, eyre};
 use discretionary_engine_core::config::ExchangeConfig;
 use tracing::{error, instrument};
-use v_exchanges::core::{Exchange, ExchangeName, Instrument};
-use v_utils::trades::Usd;
+use v_exchanges::{
+	adapters::generics::http::{ApiError, AuthError, HandleError, RequestError},
+	core::{Exchange, ExchangeName, Instrument},
+	error::ExchangeError,
+};
+use v_utils::{trades::Usd, utils::Sysexit};
+
+#[derive(Debug, thiserror::Error)]
+pub enum RiskError {
+	#[error("{0}")]
+	Unauthorized(String),
+	#[error(transparent)]
+	Other(#[from] color_eyre::eyre::Report),
+}
+impl v_utils::utils::SysexitCode for RiskError {
+	fn sysexit(&self) -> Sysexit {
+		match self {
+			RiskError::Unauthorized(_) => Sysexit::NoPerm,
+			RiskError::Other(_) => Sysexit::default(),
+		}
+	}
+}
 
 #[instrument]
-pub async fn main(exchanges: &HashMap<String, ExchangeConfig>, other_balances: Option<f64>) -> Result<()> {
+pub async fn main(exchanges: &HashMap<String, ExchangeConfig>, other_balances: Option<f64>) -> Result<(), RiskError> {
 	let exchanges = initialize_exchanges(exchanges)?;
 	let balances = collect_balances(&exchanges).await?;
 
@@ -15,7 +35,7 @@ pub async fn main(exchanges: &HashMap<String, ExchangeConfig>, other_balances: O
 	sorted_balances.sort_by(|a, b| b.1.partial_cmp(a.1).unwrap_or(std::cmp::Ordering::Equal));
 
 	for (key, balance) in sorted_balances {
-		println!("{key}: {balance}$"); // flush prematurely, as networking is the bottleneck. So showing faster is noticeable.
+		println!("{key}: {balance}$");
 	}
 
 	let total_balance = get_total_balance(&balances, other_balances);
@@ -46,19 +66,34 @@ pub fn initialize_exchanges(exchanges: &HashMap<String, ExchangeConfig>) -> Resu
 	Ok(out)
 }
 
+fn is_unauthorized(e: &ExchangeError) -> bool {
+	matches!(
+		e,
+		ExchangeError::Request(RequestError::HandleResponse(HandleError::Api(ApiError::Auth(AuthError::Unauthorized { .. }))))
+	)
+}
+
 #[instrument(skip_all)]
-pub async fn collect_balances(exchanges: &[Box<dyn Exchange>]) -> Result<HashMap<String, Usd>> {
+pub async fn collect_balances(exchanges: &[Box<dyn Exchange>]) -> Result<HashMap<String, Usd>, RiskError> {
 	let mut balances = HashMap::new();
+	let mut unauthorized = Vec::new();
 	for exchange in exchanges {
 		let name = exchange.name().to_string();
 		match exchange.balances(Instrument::Perp, None).await {
 			Ok(balance) => {
 				balances.insert(name, balance.total);
 			}
+			Err(e) if is_unauthorized(&e) => {
+				error!("{name}: {e}");
+				unauthorized.push(name);
+			}
 			Err(e) => {
 				error!("{name}: {e}");
 			}
 		}
+	}
+	if !unauthorized.is_empty() {
+		return Err(RiskError::Unauthorized(format!("Unauthorized: {}", unauthorized.join(", "))));
 	}
 	Ok(balances)
 }

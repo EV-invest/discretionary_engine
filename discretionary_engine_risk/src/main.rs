@@ -1,8 +1,8 @@
 use std::{sync::Arc, time::Duration};
 
 use clap::{Parser, Subcommand};
-use color_eyre::eyre::Result;
 use risk::config::{LiveSettings, SettingsFlags};
+use v_utils::utils::exit_on_error;
 
 #[derive(Parser)]
 #[command(author, version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"), about, long_about = None)]
@@ -22,20 +22,21 @@ enum Commands {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
 	v_utils::clientside!();
 
 	let cli = Cli::parse();
-	let live_settings = Arc::new(LiveSettings::new(cli.settings, Duration::from_secs(5))?);
+	let t = exit_on_error(LiveSettings::new(cli.settings, Duration::from_secs(5)));
+	let live_settings = Arc::new(t);
 
 	match cli.command {
 		Commands::Size => {
 			todo!();
 		}
 		Commands::Balance => {
-			let config = live_settings.config()?;
+			let config = exit_on_error(live_settings.config());
 			let other_balances = config.risk.as_ref().and_then(|r| r.other_balances);
-			risk::balance::main(&config.exchanges, other_balances).await
+			exit_on_error(risk::balance::main(&config.exchanges, other_balances).await);
 		}
 	}
 }

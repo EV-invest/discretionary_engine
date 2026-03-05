@@ -6,8 +6,8 @@ description = "Shared types for discretionary_engine"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-secrecy = { workspace = true }
-v_utils = { workspace = true }
+secrecy.workspace = true
+v_utils.workspace = true
 
 [lints]
 workspace = true

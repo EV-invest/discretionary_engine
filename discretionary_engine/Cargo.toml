@@ -19,27 +19,28 @@ de_macros = { path = "../discretionary_engine_macros", version = "^0.1.1" }
 de_routing = { path = "../discretionary_engine_routing" }
 
 chrono = "^0.4.44"
-clap = { workspace = true }
+clap.workspace = true
 clap_complete = "4.5.66"
-color-eyre = { workspace = true }
+color-eyre.workspace = true
 config = "0.15.19"
 console-subscriber = "0.5.0"
+de_risk = { path = "../discretionary_engine_risk" }
+de_strategy = { path = "../discretionary_engine_strategy" }
 derive-new = "0.7.0"
-derive_more = { workspace = true }
+derive_more.workspace = true
 dirs = "6.0"
 eyre = "0.6.12"
 function_name = "0.3.0"
 futures-util = "0.3.32"
 hex = "^0.4.3"
 hmac = "^0.12.1"
-jiff = { workspace = true }
+jiff.workspace = true
 miette.workspace = true
 nautilus-bybit = { path = "../libs/nautilus_trader/crates/adapters/bybit", default-features = false }
 nautilus-model = { path = "../libs/nautilus_trader/crates/model" }
 rand = { version = "0.10.0" }
 reqwest = { version = "0.13.2", features = ["json", "blocking"] }
-de_risk = { path = "../discretionary_engine_risk" }
-secrecy = { workspace = true }
+secrecy.workspace = true
 serde = { version = "^1.0.228", features = ["derive"] }
 serde_json = "^1.0.149"
 serde_path_to_error = "0.1.20"
@@ -47,12 +48,11 @@ serde_urlencoded = "^0.7.1"
 serde_with = "^3.17.0"
 sha2 = "^0.10.9"
 smart-default.workspace = true
-snapshot_fonts = { workspace = true }
-de_strategy = { path = "../discretionary_engine_strategy" }
-strum = { workspace = true }
+snapshot_fonts.workspace = true
+strum.workspace = true
 tokio = { version = "^1.50.0", features = ["full", "tracing"] }
 tokio-tungstenite = { version = "0.28.0", features = ["native-tls"] }
-tracing = { workspace = true }
+tracing.workspace = true
 tracing-bunyan-formatter = "0.3.10"
 tracing-error = "0.2.1"
 tracing-log = "0.2.0"
@@ -60,10 +60,10 @@ tracing-subscriber = { version = "^0.3.22", features = ["fmt", "json", "registry
 url = "^2.5.8"
 ustr = "1.1.0"
 uuid = { version = "^1.21.0", features = ["serde", "v4", "v7", "v8"] }
-v_exchanges = { workspace = true }
-v_utils = { workspace = true }
+v_exchanges.workspace = true
+v_utils.workspace = true
 
 [dev-dependencies]
-insta = { workspace = true }
+insta.workspace = true
 lazy_static = "1.5.0"
 

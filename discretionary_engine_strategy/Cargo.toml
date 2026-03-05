@@ -14,26 +14,26 @@ description = "Strategy execution engine for discretionary_engine"
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
 [dependencies]
-clap = { workspace = true }
-color-eyre = { workspace = true }
+clap.workspace = true
+color-eyre.workspace = true
+de_macros = { path = "../discretionary_engine_macros" }
 derive-new = "0.7"
 derive_more.workspace = true
-de_macros = { path = "../discretionary_engine_macros" }
 eyre = "0.6"
 futures-util = "0.3.31"
 miette.workspace = true
 nautilus-bybit = { path = "../libs/nautilus_trader/crates/adapters/bybit", default-features = false }
 nautilus-model = { path = "../libs/nautilus_trader/crates/model" }
 redis = { version = "^1.0", features = ["tokio-comp", "streams"] }
-serde = { workspace = true }
+serde.workspace = true
 tokio = { version = "^1.49.0", features = ["full", "signal"] }
-tracing = { workspace = true }
+tracing.workspace = true
 tracing-subscriber = { version = "^0.3.22", features = ["fmt", "env-filter"] }
-v_exchanges = { workspace = true }
-v_utils = { workspace = true }
+v_exchanges.workspace = true
+v_utils.workspace = true
 
 [dev-dependencies]
-insta = { workspace = true }
+insta.workspace = true
 
 [lints]
 workspace = true

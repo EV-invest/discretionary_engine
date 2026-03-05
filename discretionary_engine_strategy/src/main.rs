@@ -4,7 +4,7 @@ use futures_util as _;
 use nautilus_bybit as _;
 use nautilus_model as _;
 use strategy::{protocols::interpret_protocol_specs, redis_bus};
-use tracing::{info, level_filters::LevelFilter};
+use tracing::info;
 
 #[derive(Parser)]
 #[command(author, version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"), about, long_about = None)]
@@ -29,7 +29,7 @@ enum Commands {
 	Adjust(AdjustArgs),
 }
 
-#[derive(Args, Clone, Debug)]
+#[derive(clap::Args, Clone, Debug)]
 struct SubmitArgs {
 	/// Target size of the position on the asset to establish. Signed.
 	#[arg(short, long, allow_hyphen_values = true)]

@@ -13,6 +13,41 @@ use v_utils::{log, trades::Timeframe};
 
 use crate::{bybit_common::*, config::LiveSettings};
 
+#[derive(clap::Args, Debug)]
+#[command(group(
+    clap::ArgGroup::new("size_group")
+        .required(true)
+        .args(["quote", "notional", "size"]),
+))]
+pub(crate) struct AdjustPosArgs {
+	/// Ticker to adjust position for.
+	ticker: Ticker,
+
+	/// Size in quote currency.
+	#[arg(short = 'q', long)]
+	quote: Option<f64>,
+
+	/// Size in notional (USD)
+	#[arg(short = 'n', long)]
+	notional: Option<f64>,
+
+	/// Size with suffix inference: "$" for USD, asset name (e.g., "BTC") for that asset, or plain number for quote
+	#[arg(short = 's', long)]
+	size: Option<String>,
+
+	/// timeframe, in the format of "1m", "1h", "3M", etc.
+	/// determines the target period for which we expect the edge to persist.
+	#[arg(short, long)]
+	tf: Option<Timeframe>,
+
+	/// Reduce-only mode: only reduce existing position, don't increase it
+	#[arg(long)]
+	reduce: bool,
+
+	/// Optional duration over which to execute the order (using chase-limit strategy)
+	#[arg(short, long)]
+	duration: Option<Timeframe>,
+}
 pub(crate) async fn main(args: AdjustPosArgs, live_settings: Arc<LiveSettings>, testnet: bool) -> Result<()> {
 	info!("Starting adjust-pos for ticker: {:?}", args.ticker);
 
@@ -205,41 +240,6 @@ pub(crate) async fn main(args: AdjustPosArgs, live_settings: Arc<LiveSettings>, 
 			bail!("Order failed: {} (code: {})", order_response.ret_msg, order_response.ret_code);
 		}
 	}
-}
-#[derive(clap::Args, Debug)]
-#[command(group(
-    clap::ArgGroup::new("size_group")
-        .required(true)
-        .args(["quote", "notional", "size"]),
-))]
-pub(crate) struct AdjustPosArgs {
-	/// Ticker to adjust position for.
-	ticker: Ticker,
-
-	/// Size in quote currency.
-	#[arg(short = 'q', long)]
-	quote: Option<f64>,
-
-	/// Size in notional (USD)
-	#[arg(short = 'n', long)]
-	notional: Option<f64>,
-
-	/// Size with suffix inference: "$" for USD, asset name (e.g., "BTC") for that asset, or plain number for quote
-	#[arg(short = 's', long)]
-	size: Option<String>,
-
-	/// timeframe, in the format of "1m", "1h", "3M", etc.
-	/// determines the target period for which we expect the edge to persist.
-	#[arg(short, long)]
-	tf: Option<Timeframe>,
-
-	/// Reduce-only mode: only reduce existing position, don't increase it
-	#[arg(long)]
-	reduce: bool,
-
-	/// Optional duration over which to execute the order (using chase-limit strategy)
-	#[arg(short, long)]
-	duration: Option<Timeframe>,
 }
 
 /// Round quantity to the appropriate step size

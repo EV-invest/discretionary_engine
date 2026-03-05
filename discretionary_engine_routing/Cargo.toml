@@ -1,0 +1,38 @@
+[package]
+name = "routing"
+version = "0.1.0"
+edition = "2024"
+
+license = "MIT"
+documentation = "https://docs.rs/discretionary_engine_routing"
+repository = "https://github.com/valeratrades/discretionary_engine/tree/master/discretionary_engine_routing"
+homepage = "https://github.com/valeratrades/discretionary_engine"
+authors = ["valeratrades"]
+description = "Route and reason about incoming detla change intents"
+
+[package.metadata.docs.rs]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+
+[dependencies]
+clap = { workspace = true }
+color-eyre = { workspace = true }
+derive-new = "0.7"
+derive_more.workspace = true
+discretionary_engine_macros = { path = "../discretionary_engine_macros" }
+futures-util = "0.3.31"
+miette.workspace = true
+nautilus-bybit = { path = "../libs/nautilus_trader/crates/adapters/bybit", default-features = false } #dbg
+nautilus-model = { path = "../libs/nautilus_trader/crates/model" } #dbg
+redis = { version = "^1.0", features = ["tokio-comp", "streams"] }
+serde = { workspace = true }
+tokio = { version = "^1.49.0", features = ["full", "signal"] }
+tracing = { workspace = true }
+tracing-subscriber = { version = "^0.3.22", features = ["fmt", "env-filter"] }
+v_exchanges = { workspace = true }
+v_utils = { workspace = true }
+
+[dev-dependencies]
+insta.workspace = true
+
+[lints]
+workspace = true

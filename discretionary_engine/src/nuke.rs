@@ -12,6 +12,15 @@ use v_utils::{log, trades::Timeframe};
 
 use crate::{bybit_common::*, config::LiveSettings};
 
+#[derive(clap::Args, Debug)]
+pub(crate) struct NukeArgs {
+	/// Ticker to close position for.
+	ticker: Ticker,
+
+	/// Optional duration over which to close the position (for MM trailing strategy)
+	#[arg(short, long)]
+	duration: Option<Timeframe>,
+}
 pub(crate) async fn main(args: NukeArgs, live_settings: Arc<LiveSettings>, testnet: bool) -> Result<()> {
 	log!("Nuke command for ticker: {:?}", args.ticker);
 
@@ -156,13 +165,4 @@ pub(crate) async fn main(args: NukeArgs, live_settings: Arc<LiveSettings>, testn
 			bail!("Order failed: {} (code: {})", order_response.ret_msg, order_response.ret_code);
 		}
 	}
-}
-#[derive(clap::Args, Debug)]
-pub(crate) struct NukeArgs {
-	/// Ticker to close position for.
-	ticker: Ticker,
-
-	/// Optional duration over which to close the position (for MM trailing strategy)
-	#[arg(short, long)]
-	duration: Option<Timeframe>,
 }

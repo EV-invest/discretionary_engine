@@ -5,7 +5,7 @@ extern crate clap;
 pub const EXE_NAME: &str = "discretionary_engine";
 
 use color_eyre::eyre::{Result, eyre};
-pub use discretionary_engine_core::config::ExchangeConfig;
+pub use de_core::config::ExchangeConfig;
 pub use risk::config::*;
 pub use strategy::config::*;
 use v_exchanges::ExchangeName;

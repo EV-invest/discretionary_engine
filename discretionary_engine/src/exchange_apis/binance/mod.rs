@@ -83,7 +83,7 @@ pub async fn signed_request<S: AsRef<str>>(http_method: reqwest::Method, endpoin
 			return Ok(r);
 		}
 
-		let error_html = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
+		let error_html: String = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
 		if error_html.contains("<TITLE>ERROR: The request could not be satisfied</TITLE>") && attempt <= max_retries {
 			if !encountered_cloudfront_error {
 				tracing::warn!("Encountered CloudFront error. Oh boy, here we go again.");
@@ -105,13 +105,14 @@ pub async fn signed_request<S: AsRef<str>>(http_method: reqwest::Method, endpoin
 pub async fn unsigned_request(http_method: reqwest::Method, endpoint_str: &str, params: HashMap<&str, String>) -> Result<reqwest::Response> {
 	debug!("requesting unsigned\nEndpoint: {endpoint_str}\nParams: {:?}", &params);
 	let client = reqwest::Client::new();
-	let r = client.request(http_method, endpoint_str).query(&params).send().await?;
+	let _ = &params;
+	let r: reqwest::Response = client.request(http_method, endpoint_str).send().await?;
 
 	if r.status().is_success() {
 		return Ok(r);
 	}
 
-	let error_html = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
+	let error_html: String = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
 	Err(unexpected_response_str(&error_html))
 }
 #[instrument(skip(key, secret))]

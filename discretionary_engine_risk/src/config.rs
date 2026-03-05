@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use discretionary_engine_core::config::ExchangeConfig;
+use de_core::config::ExchangeConfig;
 use v_utils::{Percent, macros as v_macros, percent::PercentU};
 
 #[derive(Clone, Debug, v_macros::LiveSettings, v_macros::MyConfigPrimitives, v_macros::Settings)]

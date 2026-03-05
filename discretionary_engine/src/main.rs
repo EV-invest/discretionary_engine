@@ -12,6 +12,83 @@ pub mod protocols;
 pub mod utils;
 pub static MAX_CONNECTION_FAILURES: u32 = 10;
 pub static MUT_CURRENT_CONNECTION_FAILURES: AtomicU32 = AtomicU32::new(0);
+#[derive(Parser)]
+#[command(author, version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"), about, long_about = None)]
+struct Cli {
+	#[command(subcommand)]
+	command: Commands,
+	#[command(flatten)]
+	settings: SettingsFlags,
+	#[arg(short, long, action = clap::ArgAction::SetTrue)]
+	noconfirm: bool,
+	/// Use testnet instead of mainnet
+	#[arg(long, global = true)]
+	testnet: bool,
+}
+#[derive(Subcommand)]
+enum Commands {
+	/// Start the main program
+	Run(PositionArgs),
+	/// Adjust an existing position size smartly
+	AdjustPos(adjust_pos::AdjustPosArgs),
+	/// Close position completely
+	Nuke(nuke::NukeArgs),
+	/// Risk management commands
+	Risk {
+		#[command(subcommand)]
+		command: risk::RiskCommands,
+	},
+	/// Strategy commands (nautilus-based)
+	Strategy {
+		#[command(subcommand)]
+		command: StrategyCommands,
+	},
+	/// Routing layer. Not really meant to be accessed directly, going back and forth on whether it should be exposed
+	Routing {
+		#[command(subcommand)]
+		command: routing::Commands,
+	},
+	/// Shell aliases and completions. Usage: `discretionary_engine init <shell> | source`
+	Init(shell_init::ShellInitArgs),
+}
+#[derive(Subcommand)]
+enum StrategyCommands {
+	/// Start the strategy listener
+	Start,
+	/// Submit a position request to the running strategy
+	Submit(StrategySubmitArgs),
+}
+#[derive(Args, Clone, Debug)]
+struct StrategySubmitArgs {
+	/// Target change in exposure. So positive for buying, negative for selling.
+	#[arg(short, long, allow_hyphen_values = true)]
+	size_usdt: f64,
+	/// _only_ the coin name itself. e.g. "BTC" or "ETH".
+	#[arg(short, long)]
+	coin: String,
+	/// protocols parameters, in the format of "<protocol>-<params>", e.g. "ts:p0.5".
+	#[arg(short, long)]
+	protocols: Vec<String>,
+}
+#[derive(Args, Clone, Debug)]
+struct PositionArgs {
+	/// Target change in exposure. So positive for buying, negative for selling.
+	#[arg(short, long)]
+	size_usdt: f64,
+	/// timeframe, in the format of "1m", "1h", "3M", etc.
+	/// determines the target period for which we expect the edge to persist.
+	#[arg(short, long)]
+	tf: Option<Timeframe>,
+	/// _only_ the coin name itself. e.g. "BTC" or "ETH". Providing full symbol currently will error on the stage of making price requests for the coin.
+	#[arg(short, long)]
+	coin: String,
+	/// acquisition protocols parameters, in the format of "<protocol>-<params>", e.g. "ts:p0.5". Params consist of their starting letter followed by the value, e.g. "p0.5" for 0.5% offset. If multiple params are required, they are separated by '-'.
+	#[arg(short, long)]
+	acquisition_protocols: Vec<String>,
+	/// followup protocols parameters, in the format of "<protocol>-<params>", e.g. "ts:p0.5". Params consist of their starting letter followed by the value, e.g. "p0.5" for 0.5% offset. If multiple params are required, they are separated by '-'.
+	#[arg(short, long)]
+	followup_protocols: Vec<String>,
+}
 #[tokio::main]
 async fn main() -> Result<()> {
 	color_eyre::install()?;
@@ -31,13 +108,18 @@ async fn main() -> Result<()> {
 		}
 	};
 
-	// Handle risk commands early - they don't need the full exchange infrastructure
+	// Handle risk/routing commands early - they don't need the full exchange infrastructure
 	if let Commands::Risk { command } = cli.command {
 		utils::init_subscriber(None);
 		exit_on_error(match command {
 			risk::RiskCommands::Size(args) => risk::size_main(live_settings, args).await,
 			risk::RiskCommands::Balance => risk::balance_main(live_settings).await,
 		});
+		return Ok(());
+	}
+	if let Commands::Routing { command } = cli.command {
+		utils::init_subscriber(None);
+		exit_on_error(routing::main(command).map_err(|e| color_eyre::eyre::eyre!(e)));
 		return Ok(());
 	}
 
@@ -81,7 +163,7 @@ async fn main() -> Result<()> {
 				}
 			}
 		}
-		Commands::Risk { .. } | Commands::Init(_) => unreachable!(),
+		Commands::Risk { .. } | Commands::Routing { .. } | Commands::Init(_) => unreachable!(),
 	});
 
 	Ok(())
@@ -110,81 +192,6 @@ use v_utils::{
 	trades::{Side, Timeframe},
 	utils::exit_on_error,
 };
-
-#[derive(Parser)]
-#[command(author, version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"), about, long_about = None)]
-struct Cli {
-	#[command(subcommand)]
-	command: Commands,
-	#[command(flatten)]
-	settings: SettingsFlags,
-	#[arg(short, long, action = clap::ArgAction::SetTrue)]
-	noconfirm: bool,
-	/// Use testnet instead of mainnet
-	#[arg(long, global = true)]
-	testnet: bool,
-}
-#[derive(Subcommand)]
-enum Commands {
-	/// Start the main program
-	Run(PositionArgs),
-	/// Adjust an existing position size smartly
-	AdjustPos(adjust_pos::AdjustPosArgs),
-	/// Close position completely
-	Nuke(nuke::NukeArgs),
-	/// Risk management commands
-	Risk {
-		#[command(subcommand)]
-		command: risk::RiskCommands,
-	},
-	/// Strategy commands (nautilus-based)
-	Strategy {
-		#[command(subcommand)]
-		command: StrategyCommands,
-	},
-	/// Shell aliases and completions. Usage: `discretionary_engine init <shell> | source`
-	Init(shell_init::ShellInitArgs),
-}
-
-#[derive(Subcommand)]
-enum StrategyCommands {
-	/// Start the strategy listener
-	Start,
-	/// Submit a position request to the running strategy
-	Submit(StrategySubmitArgs),
-}
-
-#[derive(Args, Clone, Debug)]
-struct StrategySubmitArgs {
-	/// Target change in exposure. So positive for buying, negative for selling.
-	#[arg(short, long, allow_hyphen_values = true)]
-	size_usdt: f64,
-	/// _only_ the coin name itself. e.g. "BTC" or "ETH".
-	#[arg(short, long)]
-	coin: String,
-	/// protocols parameters, in the format of "<protocol>-<params>", e.g. "ts:p0.5".
-	#[arg(short, long)]
-	protocols: Vec<String>,
-}
-#[derive(Args, Clone, Debug)]
-struct PositionArgs {
-	/// Target change in exposure. So positive for buying, negative for selling.
-	#[arg(short, long)]
-	size_usdt: f64,
-	/// timeframe, in the format of "1m", "1h", "3M", etc.
-	/// determines the target period for which we expect the edge to persist.
-	#[arg(short, long)]
-	tf: Option<Timeframe>,
-	/// _only_ the coin name itself. e.g. "BTC" or "ETH". Providing full symbol currently will error on the stage of making price requests for the coin.
-	#[arg(short, long)]
-	coin: String,
-	/// acquisition protocols parameters, in the format of "<protocol>-<params>", e.g. "ts:p0.5". Params consist of their starting letter followed by the value, e.g. "p0.5" for 0.5% offset. If multiple params are required, they are separated by '-'.
-	#[arg(short, long)]
-	acquisition_protocols: Vec<String>,
-	/// followup protocols parameters, in the format of "<protocol>-<params>", e.g. "ts:p0.5". Params consist of their starting letter followed by the value, e.g. "p0.5" for 0.5% offset. If multiple params are required, they are separated by '-'.
-	#[arg(short, long)]
-	followup_protocols: Vec<String>,
-}
 
 // TODO: change to initializing exchange sockets once, then just have a loop listening on localhost, that accepts new positions or modification requests.
 

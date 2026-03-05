@@ -1,7 +1,7 @@
 use std::{collections::HashMap, str::FromStr};
 
 use color_eyre::eyre::{Result, eyre};
-use discretionary_engine_core::config::ExchangeConfig;
+use de_core::config::ExchangeConfig;
 use tracing::{error, instrument};
 use v_exchanges::{
 	adapters::generics::http::{ApiError, AuthError, HandleError, RequestError},

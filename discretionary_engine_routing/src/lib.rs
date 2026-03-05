@@ -31,3 +31,4 @@ pub fn main(cmd: Commands) -> Result<()> {
 
 //DO: want some kind of tracking system for all `ConceptualLimit`s in action
 //DO: and then change/remove will naturally integrate with it
+//Nb: at this level there is no interpreting and selecting from orders generated from ConceptualLimit processes, - we just take and execute them as-is. Thinking about what others are doing is on `_strategy`, - in here we just do what we're told

@@ -62,29 +62,6 @@ struct AdjustArgs {
 	sorry: (),
 }
 
-/// Reconstruct the CLI string from parsed args.
-fn build_cli_string(args: &SubmitArgs, testnet: bool) -> String {
-	let mut parts = Vec::new();
-
-	if testnet {
-		parts.push("--testnet".to_string());
-	}
-
-	parts.push("submit".to_string());
-	parts.push(format!("-s {}", args.size_usdt));
-	parts.push(format!("-c {}", args.asset));
-
-	//HACK: awaits rewrite of our local logic; to move away from "position stages"
-	for p in &args.protocols.opening {
-		parts.push(format!("-a {p}"));
-	}
-	for p in &args.protocols.closing {
-		parts.push(format!("-f {p}"));
-	}
-
-	parts.join(" ")
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
 	v_utils::clientside!();
@@ -148,4 +125,26 @@ async fn main() -> Result<()> {
 	}
 
 	Ok(())
+}
+/// Reconstruct the CLI string from parsed args.
+fn build_cli_string(args: &SubmitArgs, testnet: bool) -> String {
+	let mut parts = Vec::new();
+
+	if testnet {
+		parts.push("--testnet".to_string());
+	}
+
+	parts.push("submit".to_string());
+	parts.push(format!("-s {}", args.size_usdt));
+	parts.push(format!("-c {}", args.asset));
+
+	//HACK: awaits rewrite of our local logic; to move away from "position stages"
+	for p in &args.protocols.opening {
+		parts.push(format!("-a {p}"));
+	}
+	for p in &args.protocols.closing {
+		parts.push(format!("-f {p}"));
+	}
+
+	parts.join(" ")
 }

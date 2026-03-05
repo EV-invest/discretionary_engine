@@ -14,25 +14,6 @@ pub struct SubmitArgs {
 	pub testnet: bool,
 }
 
-/// Reconstruct the CLI string from parsed args.
-fn build_cli_string(args: &SubmitArgs) -> String {
-	let mut parts = Vec::new();
-
-	if args.testnet {
-		parts.push("--testnet".to_string());
-	}
-
-	parts.push("submit".to_string());
-	parts.push(format!("-s {}", args.size_usdt));
-	parts.push(format!("-c {}", args.coin));
-
-	for proto in &args.protocols {
-		parts.push(format!("-f {}", proto));
-	}
-
-	parts.join(" ")
-}
-
 /// Submit a position request via Redis.
 pub async fn submit(args: SubmitArgs, redis_port: u16) -> Result<()> {
 	// Validate protocols first
@@ -40,18 +21,17 @@ pub async fn submit(args: SubmitArgs, redis_port: u16) -> Result<()> {
 
 	// Build CLI string and publish to Redis
 	let cli_string = build_cli_string(&args);
-	println!("Publishing command: {}", cli_string);
+	println!("Publishing command: {cli_string}");
 
 	let mut conn = redis_bus::connect(redis_port).await?;
 	let id = redis_bus::publish_command(&mut conn, &cli_string).await?;
-	println!("Command published with ID: {}", id);
+	println!("Command published with ID: {id}");
 
 	Ok(())
 }
-
 /// Start the strategy and listen for commands via Redis.
 pub async fn start_listener(redis_port: u16) -> Result<()> {
-	info!("Starting strategy, listening for commands on Redis port {}...", redis_port);
+	info!("Starting strategy, listening for commands on Redis port {redis_port}...");
 
 	// Generate a unique consumer name
 	let consumer_name = format!("strategy-{}", std::process::id());
@@ -86,4 +66,22 @@ pub async fn start_listener(redis_port: u16) -> Result<()> {
 	}
 
 	Ok(())
+}
+/// Reconstruct the CLI string from parsed args.
+fn build_cli_string(args: &SubmitArgs) -> String {
+	let mut parts = Vec::new();
+
+	if args.testnet {
+		parts.push("--testnet".to_string());
+	}
+
+	parts.push("submit".to_string());
+	parts.push(format!("-s {}", args.size_usdt));
+	parts.push(format!("-c {}", args.coin));
+
+	for proto in &args.protocols {
+		parts.push(format!("-f {proto}"));
+	}
+
+	parts.join(" ")
 }

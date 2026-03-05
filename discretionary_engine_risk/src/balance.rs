@@ -10,22 +10,6 @@ use v_exchanges::{
 };
 use v_utils::{trades::Usd, utils::Sysexit};
 
-#[derive(Debug, thiserror::Error)]
-pub enum RiskError {
-	#[error("{0}")]
-	Unauthorized(String),
-	#[error(transparent)]
-	Other(#[from] color_eyre::eyre::Report),
-}
-impl v_utils::utils::SysexitCode for RiskError {
-	fn sysexit(&self) -> Sysexit {
-		match self {
-			RiskError::Unauthorized(_) => Sysexit::NoPerm,
-			RiskError::Other(_) => Sysexit::default(),
-		}
-	}
-}
-
 #[instrument]
 pub async fn main(exchanges: &HashMap<String, ExchangeConfig>, other_balances: Option<&HashMap<String, f64>>) -> Result<(), RiskError> {
 	let exchanges = initialize_exchanges(exchanges)?;
@@ -46,6 +30,21 @@ pub async fn main(exchanges: &HashMap<String, ExchangeConfig>, other_balances: O
 	let total_balance = get_total_balance(&balances, other_balances);
 	println!("\nTotal: {total_balance}$");
 	Ok(())
+}
+#[derive(Debug, thiserror::Error)]
+pub enum RiskError {
+	#[error("{0}")]
+	Unauthorized(String),
+	#[error(transparent)]
+	Other(#[from] color_eyre::eyre::Report),
+}
+impl v_utils::utils::SysexitCode for RiskError {
+	fn sysexit(&self) -> Sysexit {
+		match self {
+			RiskError::Unauthorized(_) => Sysexit::NoPerm,
+			RiskError::Other(_) => Sysexit::default(),
+		}
+	}
 }
 
 #[instrument(skip_all)]
@@ -69,13 +68,6 @@ pub fn initialize_exchanges(exchanges: &HashMap<String, ExchangeConfig>) -> Resu
 		out.push(exchange);
 	}
 	Ok(out)
-}
-
-fn is_unauthorized(e: &ExchangeError) -> bool {
-	matches!(
-		e,
-		ExchangeError::Request(RequestError::HandleResponse(HandleError::Api(ApiError::Auth(AuthError::Unauthorized { .. }))))
-	)
 }
 
 #[instrument(skip_all)]
@@ -102,7 +94,6 @@ pub async fn collect_balances(exchanges: &[Box<dyn Exchange>]) -> Result<HashMap
 	}
 	Ok(balances)
 }
-
 #[instrument(skip_all)]
 pub fn get_total_balance(balances: &HashMap<String, Usd>, other_balances: Option<&HashMap<String, f64>>) -> Usd {
 	let mut total = Usd(0.);
@@ -113,4 +104,10 @@ pub fn get_total_balance(balances: &HashMap<String, Usd>, other_balances: Option
 		total = Usd(*total + others.values().sum::<f64>());
 	}
 	total
+}
+fn is_unauthorized(e: &ExchangeError) -> bool {
+	matches!(
+		e,
+		ExchangeError::Request(RequestError::HandleResponse(HandleError::Api(ApiError::Auth(AuthError::Unauthorized { .. }))))
+	)
 }

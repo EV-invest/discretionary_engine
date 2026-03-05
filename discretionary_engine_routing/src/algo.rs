@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use miette::Result;
 use uuid::Uuid;
-use v_exchanges::Symbol;
+use v_exchanges::{ExchangeName, Symbol, orders::LimitOrder};
 use v_utils::trades::Side;
 
 #[derive(clap::Args, Debug)]
@@ -20,28 +22,34 @@ pub struct ConceptualLimitArgs {
 	/// side
 	#[arg(long)]
 	pub side: Side,
+	//TODO: the actually juicy parts like the relative cost of price diff vs time
 }
 
 #[derive(Clone, Debug)]
 pub struct ConceptualLimit {
+	pub id: Uuid,
+
 	limit: f32,
 	symbol: Symbol,
 	size_q: f32,
-	pub id: Uuid,
 	side: Side,
+
+	/// total per-exchange qty fill value
+	filled: HashMap<ExchangeName, f32>,
+}
+impl ConceptualLimit {
+	/// produces the vec of exact target orders that we want to see currently outstanding
+	///
+	/// no generics or "semantic" stuff at this level, - we produce exact limit orders for exact exchange with exact configuration  
+	pub async fn next(&self) -> Result<Vec<LimitOrder>, Error> {
+		todo!()
+	}
 }
 
 #[derive(Debug, derive_more::Display, thiserror::Error, derive_more::From)]
 /// Error during the conversion of intent into exact orders
 pub enum Error {
 	Other(miette::Report),
-}
-
-impl ConceptualLimit {
-	pub fn next(&self) -> Result<(), Error> {
-		//HACK: should be a proper custom error type
-		todo!()
-	}
 }
 
 impl From<ConceptualLimitArgs> for ConceptualLimit {

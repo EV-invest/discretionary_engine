@@ -16,19 +16,20 @@ build = "build.rs"
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
 [dependencies]
+de_core = { path = "../discretionary_engine_core" }
+
+thiserror = "2"
+tokio = { version = "^1.49.0", features = ["full", "signal"] }
+tracing-subscriber = { version = "^0.3.22", features = ["fmt", "env-filter"] }
+
 clap.workspace = true
 color-eyre.workspace = true
-de_core = { path = "../discretionary_engine_core" }
 jiff.workspace = true
 miette.workspace = true
-
 smart-default.workspace = true
 snapshot_fonts.workspace = true
 strum.workspace = true
-thiserror = "2"
-tokio = { version = "^1.49.0", features = ["full", "signal"] }
 tracing.workspace = true
-tracing-subscriber = { version = "^0.3.22", features = ["fmt", "env-filter"] }
 v_exchanges = { workspace = true, features = ["binance", "bybit", "kucoin", "mexc"] }
 v_utils = { workspace = true, features = ["trades"] }
 

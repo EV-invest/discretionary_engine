@@ -3,7 +3,7 @@
 //! This is the ONLY place in the strategy crate that should know about Bybit.
 //! All data is normalized to Nautilus types before being sent to the strategy.
 
-use color_eyre::eyre::{Result, eyre};
+use color_eyre::eyre::{Result, bail, eyre};
 use futures_util::StreamExt;
 use nautilus_bybit::{
 	common::enums::{BybitEnvironment, BybitProductType},
@@ -55,7 +55,7 @@ pub async fn init_data(config: BybitDataConfig, tx: mpsc::UnboundedSender<TradeT
 			.map_err(|e| eyre!("Failed to fetch instrument {symbol}: {e}"))?;
 
 		if instruments.is_empty() {
-			return Err(eyre!("No instrument found for symbol: {symbol}"));
+			bail!("No instrument found for symbol: {symbol}");
 		}
 		all_instruments.extend(instruments);
 	}

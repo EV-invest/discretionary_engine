@@ -31,6 +31,8 @@ snapshot_fonts = "1.2.0"
 strum = { version = "0.28", features = ["derive"] }
 tracing = { version = "^0.1.44", features = ["log", "std", "async-await"] }
 v_exchanges = { version = "^0.17.0", features = ["full"] }
+uuid = { version = "^1.21.0", features = ["serde", "v4", "v7", "v8"] }
+thiserror = {version = "^2.0.18"}
 v_utils = { version = "2.15.29", features = ["full"] }
 
 #dbg: \

@@ -1,3 +1,4 @@
+#![allow(warnings)]
 #![allow(clippy::comparison_to_empty)]
 #![allow(clippy::get_first)]
 #![allow(clippy::len_zero)] // wait, so are the ones in Cargo.toml not enough?

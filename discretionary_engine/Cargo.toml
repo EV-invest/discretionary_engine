@@ -15,8 +15,8 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
 [dependencies]
 de_core = { path = "../discretionary_engine_core" }
-discretionary_engine_macros = { path = "../discretionary_engine_macros", version = "^0.1.1" }
-routing = { path = "../discretionary_engine_routing" }
+de_macros = { path = "../discretionary_engine_macros", version = "^0.1.1" }
+de_routing = { path = "../discretionary_engine_routing" }
 
 chrono = "^0.4.44"
 clap = { workspace = true }
@@ -38,7 +38,7 @@ nautilus-bybit = { path = "../libs/nautilus_trader/crates/adapters/bybit", defau
 nautilus-model = { path = "../libs/nautilus_trader/crates/model" }
 rand = { version = "0.10.0" }
 reqwest = { version = "0.13.2", features = ["json", "blocking"] }
-risk = { path = "../discretionary_engine_risk" }
+de_risk = { path = "../discretionary_engine_risk" }
 secrecy = { workspace = true }
 serde = { version = "^1.0.228", features = ["derive"] }
 serde_json = "^1.0.149"
@@ -48,7 +48,7 @@ serde_with = "^3.17.0"
 sha2 = "^0.10.9"
 smart-default.workspace = true
 snapshot_fonts = { workspace = true }
-strategy = { path = "../discretionary_engine_strategy" }
+de_strategy = { path = "../discretionary_engine_strategy" }
 strum = { workspace = true }
 tokio = { version = "^1.50.0", features = ["full", "tracing"] }
 tokio-tungstenite = { version = "0.28.0", features = ["native-tls"] }

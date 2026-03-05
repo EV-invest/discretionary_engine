@@ -1,5 +1,5 @@
 [package]
-name = "strategy"
+name = "de_strategy"
 version = "1.0.0"
 edition = "2024"
 
@@ -18,7 +18,7 @@ clap = { workspace = true }
 color-eyre = { workspace = true }
 derive-new = "0.7"
 derive_more.workspace = true
-discretionary_engine_macros = { path = "../discretionary_engine_macros" }
+de_macros = { path = "../discretionary_engine_macros" }
 eyre = "0.6"
 futures-util = "0.3.31"
 miette.workspace = true

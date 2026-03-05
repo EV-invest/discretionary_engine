@@ -1,5 +1,5 @@
 use color_eyre::eyre::Result;
-use discretionary_engine_macros::ProtocolWrapper;
+use de_macros::ProtocolWrapper;
 use tokio::{sync::mpsc, task::JoinSet};
 use v_utils::{Percent, macros as v_macros, trades::Side};
 

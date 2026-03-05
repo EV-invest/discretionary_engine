@@ -1,7 +1,7 @@
 //! DummyMarket protocol - sends a single market order.
 
 use color_eyre::eyre::Result;
-use discretionary_engine_macros::ProtocolWrapper;
+use de_macros::ProtocolWrapper;
 use tokio::{sync::mpsc, task::JoinSet};
 use v_exchanges::core::{Instrument, Symbol};
 use v_utils::{

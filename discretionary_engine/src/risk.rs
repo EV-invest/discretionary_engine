@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use clap::{Args, Subcommand};
 use color_eyre::eyre;
-use jiff::Unit;
-use risk::{
+use de_risk::{
 	FromPhone, LostLastTrade, Quality, RiskLayer, RiskTier, StopLossProximity, apply_risk_layers, apply_round_bias,
 	balance::{RiskError, collect_balances, get_total_balance, initialize_exchanges},
 	ema_prev_times_for_same_move,
 };
+use jiff::Unit;
 use tracing::debug;
 use v_exchanges::core::Ticker;
 use v_utils::{Percent, log};
@@ -122,7 +122,7 @@ pub async fn size_main(live_settings: Arc<LiveSettings>, args: SizeArgs) -> Resu
 pub async fn balance_main(live_settings: Arc<LiveSettings>) -> Result<(), RiskError> {
 	let config = live_settings.config().map_err(|e| eyre::eyre!(e))?;
 	let other_balances = config.risk.as_ref().and_then(|r| r.other_balances.as_ref());
-	risk::balance::main(&config.exchanges, other_balances).await
+	de_risk::balance::main(&config.exchanges, other_balances).await
 }
 fn parse_f64_with_underscores(s: &str) -> Result<f64, std::num::ParseFloatError> {
 	s.replace('_', "").parse()

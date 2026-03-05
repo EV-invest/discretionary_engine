@@ -6,8 +6,8 @@ pub const EXE_NAME: &str = "discretionary_engine";
 
 use color_eyre::eyre::{Result, eyre};
 pub use de_core::config::ExchangeConfig;
-pub use risk::config::*;
-pub use strategy::config::*;
+pub use de_risk::config::*;
+pub use de_strategy::config::*;
 use v_exchanges::ExchangeName;
 use v_utils::macros as v_macros;
 

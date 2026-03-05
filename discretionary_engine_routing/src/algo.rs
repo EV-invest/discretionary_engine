@@ -31,7 +31,7 @@ pub struct ConceptualLimit {
 	side: Side,
 }
 
-#[derive(thiserror::Error, Debug, derive_more::From, derive_more::Display)]
+#[derive(Debug, derive_more::Display, thiserror::Error, derive_more::From)]
 /// Error during the conversion of intent into exact orders
 pub enum Error {
 	Other(miette::Report),

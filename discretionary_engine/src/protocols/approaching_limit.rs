@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use color_eyre::eyre::Result;
-use discretionary_engine_macros::ProtocolWrapper;
+use de_macros::ProtocolWrapper;
 use futures_util::StreamExt;
 use serde_json::Value;
 use tokio::{sync::mpsc, task::JoinSet};

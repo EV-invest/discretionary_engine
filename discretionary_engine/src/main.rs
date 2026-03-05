@@ -47,7 +47,7 @@ enum Commands {
 	/// Routing layer. Not really meant to be accessed directly, going back and forth on whether it should be exposed
 	Routing {
 		#[command(subcommand)]
-		command: routing::Commands,
+		command: de_routing::Commands,
 	},
 	/// Shell aliases and completions. Usage: `discretionary_engine init <shell> | source`
 	Init(shell_init::ShellInitArgs),
@@ -120,7 +120,7 @@ async fn main() -> Result<()> {
 	}
 	if let Commands::Routing { command } = cli.command {
 		utils::init_subscriber(None);
-		exit_on_error(routing::main(command).map_err(|e| color_eyre::eyre::eyre!(e)));
+		exit_on_error(de_routing::main(command).map_err(|e| color_eyre::eyre::eyre!(e)));
 		return Ok(());
 	}
 
@@ -152,15 +152,15 @@ async fn main() -> Result<()> {
 		Commands::Strategy { command } => {
 			let redis_port = live_settings.config()?.strategy.as_ref().map(|s| s.redis_port).unwrap_or(6379);
 			match command {
-				StrategyCommands::Start => strategy::commands::start_listener(redis_port).await,
+				StrategyCommands::Start => de_strategy::commands::start_listener(redis_port).await,
 				StrategyCommands::Submit(args) => {
-					let submit_args = strategy::commands::SubmitArgs {
+					let submit_args = de_strategy::commands::SubmitArgs {
 						size_usdt: args.size_usdt,
 						coin: args.coin,
 						protocols: args.protocols,
 						testnet: cli.testnet,
 					};
-					strategy::commands::submit(submit_args, redis_port).await
+					de_strategy::commands::submit(submit_args, redis_port).await
 				}
 			}
 		}

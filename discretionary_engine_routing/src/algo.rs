@@ -60,6 +60,7 @@ impl From<ConceptualLimitArgs> for ConceptualLimit {
 			size_q: v.size,
 			id: Uuid::now_v7(),
 			side: v.side,
+			filled: HashMap::new(),
 		}
 	}
 }

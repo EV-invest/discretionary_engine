@@ -3711,6 +3711,7 @@ dependencies = [
  "rustls-platform-verifier",
  "serde",
  "serde_json",
+ "serde_urlencoded",
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
@@ -5289,6 +5290,7 @@ dependencies = [
 name = "v_exchanges"
 version = "0.17.0"
 dependencies = [
+ "arrayvec",
  "async-trait",
  "cfg-if",
  "derive-new",
@@ -5302,10 +5304,12 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "smart-default",
  "strum 0.28.0",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
+ "uuid",
  "v_exchanges_adapters",
  "v_utils",
 ]

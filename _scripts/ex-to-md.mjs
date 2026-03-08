@@ -32,7 +32,11 @@ function makeId(str) {
 }
 
 function escapeMermaid(str) {
-  return str.replace(/"/g, "'");
+  return str
+    .replace(/"/g, '#quot;')
+    .replace(/</g, '#lt;')
+    .replace(/>/g, '#gt;')
+    .replace(/\n/g, '<br/>');
 }
 
 var nodes = [];
@@ -48,14 +52,14 @@ if (rects.length > 0) {
     var rawLabel = heading ? heading.text.replace(/^#+\s*/, "") : ("node_" + rect.id.slice(0, 6));
     var id       = makeId(rawLabel);
     var desc     = body.map(function(t) { return t.text; }).join('\n');
-    var label    = desc ? (rawLabel + '\n\n' + desc) : rawLabel;
+    var label    = desc ? (rawLabel + '<br/><br/>' + escapeMermaid(desc)) : escapeMermaid(rawLabel);
     nodes.push({ id: id, label: label, rectId: rect.id });
   });
 
   texts.forEach(function(t) {
     if (!assignedTextIds.has(t.id)) {
       var id = makeId(t.text.split('\n')[0]);
-      if (id) nodes.push({ id: id, label: t.text, rectId: null });
+      if (id) nodes.push({ id: id, label: escapeMermaid(t.text), rectId: null });
     }
   });
 } else {
@@ -68,7 +72,7 @@ if (rects.length > 0) {
       .filter(function(b) { return Math.abs(b.x - h.x) < 300; })
       .map(function(b) { return b.text; })
       .join('\n');
-    var label = desc ? (rawLabel + '\n\n' + desc) : rawLabel;
+    var label = desc ? (rawLabel + '<br/><br/>' + escapeMermaid(desc)) : escapeMermaid(rawLabel);
     nodes.push({ id: id, label: label, rectId: null });
   });
 }
@@ -92,24 +96,23 @@ arrows.forEach(function(arrow) {
     var labelEl = els.find(function(e) {
       return e.type === 'text' && arrow.boundElements.some(function(b) { return b.id === e.id; });
     });
-    if (labelEl) edgeLabel = labelEl.text;
+    if (labelEl) edgeLabel = escapeMermaid(labelEl.text);
   }
   edges.push({ from: from.id, to: to.id, label: edgeLabel });
 });
 
 var lines = ['```mermaid', 'flowchart LR'];
 nodes.forEach(function(n) {
-  lines.push('  ' + n.id + '["' + escapeMermaid(n.label) + '"]');
+  lines.push('  ' + n.id + '["' + n.label + '"]');
 });
 edges.forEach(function(e) {
   if (e.label) {
-    lines.push('  ' + e.from + ' -->|"' + escapeMermaid(e.label) + '"| ' + e.to);
+    lines.push('  ' + e.from + ' -->|"' + e.label + '"| ' + e.to);
   } else {
     lines.push('  ' + e.from + ' --> ' + e.to);
   }
 });
 lines.push('```');
 
-var output = '# Architecture Diagram\n\n' + lines.join('\n') + '\n';
-writeFileSync(OUT, output);
+writeFileSync(OUT, lines.join('\n') + '\n');
 console.log('Written: ' + OUT);

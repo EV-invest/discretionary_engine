@@ -272,7 +272,7 @@
 
           const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
           const IN   = join(ROOT, 'docs', 'arch.excalidraw');
-          const OUT  = join(ROOT, 'docs', 'arch.mermaid');
+          const OUT  = join(ROOT, 'docs', 'arch.md');
 
           const data = JSON.parse(readFileSync(IN, 'utf8'));
           const els  = data.elements.filter(function(e) { return !e.isDeleted; });
@@ -369,7 +369,7 @@
             edges.push({ from: from.id, to: to.id, label: edgeLabel });
           });
 
-          var lines = ['flowchart LR'];
+          var lines = ['```mermaid', 'flowchart LR'];
           nodes.forEach(function(n) {
             lines.push('  ' + n.id + '["' + n.label + '"]');
           });
@@ -380,6 +380,7 @@
               lines.push('  ' + e.from + ' --> ' + e.to);
             }
           });
+          lines.push('```');
 
           writeFileSync(OUT, lines.join('\n') + '\n');
           console.log('Written: ' + OUT);

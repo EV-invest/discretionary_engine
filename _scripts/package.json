@@ -1,0 +1,10 @@
+{
+  "name": "de-excalidraw-tools",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@excalidraw/mermaid-to-excalidraw": "*",
+    "jsdom": "*"
+  }
+}

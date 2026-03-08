@@ -8,6 +8,15 @@ const ROOT = join(SCRIPT_DIR, '..');
 const FILE = join(ROOT, 'docs', 'arch.excalidraw');
 const HTML  = join(SCRIPT_DIR, 'excalidraw-app.html');
 const PORT  = 3741;
+const HEARTBEAT_TIMEOUT = 8000;
+let lastHeartbeat = Date.now();
+
+setInterval(function() {
+  if (Date.now() - lastHeartbeat > HEARTBEAT_TIMEOUT) {
+    console.log('Tab closed, shutting down.');
+    process.exit(0);
+  }
+}, 3000);
 
 const server = createServer(function(req, res) {
   const cors = { 'Access-Control-Allow-Origin': '*' };
@@ -21,6 +30,13 @@ const server = createServer(function(req, res) {
   if (req.method === 'GET' && req.url === '/') {
     res.writeHead(200, Object.assign({ 'Content-Type': 'text/html' }, cors));
     res.end(readFileSync(HTML));
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/heartbeat') {
+    lastHeartbeat = Date.now();
+    res.writeHead(204, cors);
+    res.end();
     return;
   }
 

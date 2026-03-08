@@ -44,6 +44,7 @@
           lastSupportedVersion = "nightly-2025-10-12";
           jobs.default = true;
           langs = [ "rs" ];
+          gitignore.extra = "_scripts/node_modules";
           labels.extra = [
             # I think I should be grouping labels through color, right
             { name = "rm"; color = "0000ff"; description = "risk management side"; }
@@ -106,11 +107,28 @@
                 indicatorTimer = setTimeout(function() { indicator.style.opacity = '0'; }, 1500);
               }
 
+              var SAVE_APP_STATE_KEYS = [
+                'gridSize', 'viewBackgroundColor', 'theme',
+                'currentItemStrokeColor', 'currentItemBackgroundColor',
+                'currentItemFillStyle', 'currentItemStrokeWidth',
+                'currentItemStrokeStyle', 'currentItemRoughness',
+                'currentItemOpacity', 'currentItemFontFamily',
+                'currentItemFontSize', 'currentItemTextAlign',
+                'currentItemStartArrowhead', 'currentItemEndArrowhead',
+                'currentItemRoundness', 'exportBackground',
+                'exportWithDarkMode', 'exportScale', 'exportEmbedScene',
+                'name', 'zenModeEnabled', 'objectsSnapModeEnabled'
+              ];
+
               function saveNow() {
                 if (!excalidrawAPI) return;
                 var elements = excalidrawAPI.getSceneElements();
-                var appState  = excalidrawAPI.getAppState();
+                var fullState = excalidrawAPI.getAppState();
                 var files     = excalidrawAPI.getFiles();
+                var appState = {};
+                SAVE_APP_STATE_KEYS.forEach(function(k) {
+                  if (k in fullState) appState[k] = fullState[k];
+                });
                 fetch('/api/save', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -135,6 +153,19 @@
                   saveNow();
                 }
               });
+
+              setInterval(function() {
+                fetch('/api/heartbeat', { method: 'POST' }).catch(function() {
+                  document.getElementById('root').style.display = 'none';
+                  document.body.style.background = '#1e1e1e';
+                  document.body.style.color = '#aaa';
+                  document.body.style.display = 'flex';
+                  document.body.style.alignItems = 'center';
+                  document.body.style.justifyContent = 'center';
+                  document.body.style.font = '24px monospace';
+                  document.body.textContent = 'server stopped';
+                });
+              }, 3000);
 
               fetch('/api/load')
                 .then(function(r) { return r.json(); })
@@ -167,6 +198,15 @@
           const FILE = join(ROOT, 'docs', 'arch.excalidraw');
           const HTML  = join(SCRIPT_DIR, 'excalidraw-app.html');
           const PORT  = 3741;
+          const HEARTBEAT_TIMEOUT = 8000;
+          let lastHeartbeat = Date.now();
+
+          setInterval(function() {
+            if (Date.now() - lastHeartbeat > HEARTBEAT_TIMEOUT) {
+              console.log('Tab closed, shutting down.');
+              process.exit(0);
+            }
+          }, 3000);
 
           const server = createServer(function(req, res) {
             const cors = { 'Access-Control-Allow-Origin': '*' };
@@ -180,6 +220,13 @@
             if (req.method === 'GET' && req.url === '/') {
               res.writeHead(200, Object.assign({ 'Content-Type': 'text/html' }, cors));
               res.end(readFileSync(HTML));
+              return;
+            }
+
+            if (req.method === 'POST' && req.url === '/api/heartbeat') {
+              lastHeartbeat = Date.now();
+              res.writeHead(204, cors);
+              res.end();
               return;
             }
 

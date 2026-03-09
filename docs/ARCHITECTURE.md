@@ -1,3 +1,4 @@
+//TODO: update
 # Architecture
 ```mermaid
 flowchart TD
@@ -94,6 +95,17 @@ Way to control specifics of execution of the Position they are assigned to. Thin
 Protocols analyze any kind of market information relevant to the position they are attached to, and output their suggestion of their Position's behavior as they think is appropriate for the situation. Position then gives a predefined weight to the suggestions of each protocol, and joins them with those of others before deciding on which of the suggested orders it will be passing to Hub for execution.
 
 All available protocols are predefined, and an api for manual on-demand creation of specific protocols from common market data is not currently planned.
+
+## `_routing`
+operates over compiled intent.
+
+### Invariants
+- input's thin waist is exclusively through `ConceptualOrder`.
+- Q: how should requests over the same asset compose?
+  PROBLEM: no guarantee on consistent timeline and value of time vs price diff
+  Q: can I at least automatically automatically cancel out requested deltas of opposing sides?
+  Q: but what about case of multiple counteparties with different sides?
+- outputs exact orders, associated with exact exchange
 
 ### `exchange_apis/`
 Interface through Hub, meant to synchronize information of all outstanding to allow for more efficient rerouting (considering e.g., current balances on exchanges). Hub keeps track of the _last_ sent Orders update from each Position, dynamically deciding how exactly and on which exchanges they should be executed, having ability to move them around.

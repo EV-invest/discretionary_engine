@@ -96,17 +96,6 @@ Protocols analyze any kind of market information relevant to the position they a
 
 All available protocols are predefined, and an api for manual on-demand creation of specific protocols from common market data is not currently planned.
 
-## `_routing`
-operates over compiled intent.
-
-### Invariants
-- input's thin waist is exclusively through `ConceptualOrder`.
-- Q: how should requests over the same asset compose?
-  PROBLEM: no guarantee on consistent timeline and value of time vs price diff
-  Q: can I at least automatically automatically cancel out requested deltas of opposing sides?
-  Q: but what about case of multiple counteparties with different sides?
-- outputs exact orders, associated with exact exchange
-
 ### `exchange_apis/`
 Interface through Hub, meant to synchronize information of all outstanding to allow for more efficient rerouting (considering e.g., current balances on exchanges). Hub keeps track of the _last_ sent Orders update from each Position, dynamically deciding how exactly and on which exchanges they should be executed, having ability to move them around.
 

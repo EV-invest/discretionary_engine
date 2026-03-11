@@ -220,8 +220,8 @@
         "nixpkgs": "nixpkgs_4"
       },
       "locked": {
-        "lastModified": 1773023058,
-        "narHash": "sha256-r8KNwOWfhzKuhFq6ZAy8kq9ZeXoCx91j5rL0mSA8brY=",
+        "lastModified": 1773262953,
+        "narHash": "sha256-z1WZtdUkmPFGDZdaHZHcWfSawSEw+K0RaHIkP4hTtNk=",
         "path": "/home/v/s/g/github",
         "type": "path"
       },

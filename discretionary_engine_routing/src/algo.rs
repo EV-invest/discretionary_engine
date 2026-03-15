@@ -56,15 +56,14 @@ impl ConceptualLimit {
 
 //TODO: move to v_exchanges
 // want to have an object fully encompasing all the relevant physical updates
-struct BookUpdate {
-	book: BookDelta, // might want to have separate (book, tape) for each exchange
-	tape: Vec<Trade>,
-}
-
 #[derive(Debug, derive_more::Display, thiserror::Error, derive_more::From)]
 /// Error during the conversion of intent into exact orders
 pub enum Error {
 	Other(miette::Report),
+}
+struct BookUpdate {
+	book: BookDelta, // might want to have separate (book, tape) for each exchange
+	tape: Vec<Trade>,
 }
 
 impl From<ConceptualLimitArgs> for ConceptualLimit {

@@ -6,26 +6,29 @@ use crate::algo::ConceptualLimit;
 
 #[derive(clap::Subcommand)]
 pub enum Commands {
-	Change,
-	Deploy(ConceptualLimitArgs),
-	Remove,
+	Adj,
+	New(ConceptualLimitArgs),
+	Del,
 	//idk, still not sure if these would've been better
-	//New,
-	//Chg,
-	//Del,
+	//Change,
+	//Deplay,
+	//Remove,
 }
 
 pub fn main(cmd: Commands) -> Result<()> {
 	match cmd {
-		Commands::Change => bail!("todo"),
-		Commands::Deploy(args) => {
+		Commands::Adj => bail!("todo"),
+		Commands::New(args) => {
 			let conceptual_limit = ConceptualLimit::from(args);
+
+			// we process all the errors and order rejections here
+			// `ConceptualLimit` is basicall just a protocol, - it'll tell us what orders to have given current data. Only difference, - it returns exact orders not intent.
 
 			dbg!(&conceptual_limit);
 
 			bail!("should probably start receiving orders here");
 		}
-		Commands::Remove => bail!("todo"),
+		Commands::Del => bail!("todo"),
 	}
 }
 

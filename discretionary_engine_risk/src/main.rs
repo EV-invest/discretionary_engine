@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use clap::{Parser, Subcommand};
-use risk::config::{LiveSettings, SettingsFlags};
+use de_risk::config::{LiveSettings, SettingsFlags};
 use v_utils::utils::exit_on_error;
 
 #[derive(Parser)]
@@ -26,8 +26,7 @@ async fn main() {
 	v_utils::clientside!();
 
 	let cli = Cli::parse();
-	let t = exit_on_error(LiveSettings::new(cli.settings, Duration::from_secs(5)));
-	let live_settings = Arc::new(t);
+	let live_settings = Arc::new(exit_on_error(LiveSettings::new(cli.settings, Duration::from_secs(5))));
 
 	match cli.command {
 		Commands::Size => {
@@ -36,7 +35,7 @@ async fn main() {
 		Commands::Balance => {
 			let config = exit_on_error(live_settings.config());
 			let other_balances = config.risk.as_ref().and_then(|r| r.other_balances.as_ref());
-			exit_on_error(risk::balance::main(&config.exchanges, other_balances).await);
+			exit_on_error(de_risk::balance::main(&config.exchanges, other_balances).await);
 		}
 	}
 }

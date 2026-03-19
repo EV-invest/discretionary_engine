@@ -133,7 +133,7 @@ handles 3 parts:
 - routing of money between exchanges; setting correct leverage and execution mode with internal transfers
 - actual execution and persistence thereof
 
-### Conceptual Order
+### Conceptual Limit
 TODO: .
 
 ### Invariants
@@ -158,6 +158,11 @@ when sending or receiving orders every actor attaches a `last_fill_key`. It must
 ## [Components](https://nautilustrader.io/docs/nightly/concepts/architecture/#component-state-management)
 is implemented for all the systems that have clear state transitions. Anything that could theoretically degrade and need to be restarted, - or even take longer to start than some other component in need of it.
 Which naturally leads to `routing`, `portfolio`, (TODO: I think there are more (?)) implementing it.
+
+## [Node]
+a way to reason about objects that have hierarchical connection some others. Applies to [ConceptualLimit](#conceptual-limit)s, exact `ExchangeOrder`s, Positions, Strategies themselves.
+
+expressed through forcing a standard for storing IDs of objects related to it
 
 ## [Position]
 Main acting element at the [strategy](#strategy) level, and heavily used by [risk](#risk).

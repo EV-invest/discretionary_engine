@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use miette::Result;
 use uuid::Uuid;
@@ -21,7 +21,7 @@ pub struct ConceptualLimitArgs {
 	//TODO: the actually juicy parts like the relative cost of price diff vs time
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, derive_new::new)]
 pub struct ConceptualLimit {
 	pub id: Uuid,
 
@@ -31,9 +31,8 @@ pub struct ConceptualLimit {
 	side: Side,
 
 	/// total per-exchange qty fill value
-	filled: HashMap<ExchangeName, f32>,
-
-	__book: v_exchanges::Book,
+	__filled: HashMap<ExchangeName, f32>,
+	__book: Arc<v_exchanges::Book>,
 }
 impl ConceptualLimit {
 	/// produces the vec of exact target orders that we want to see currently outstanding
@@ -78,8 +77,10 @@ impl From<ConceptualLimitArgs> for ConceptualLimit {
 			limit: v.limit,
 			size_q: size,
 			symbol: v.symbol,
+
 			id: Uuid::now_v7(),
-			filled: HashMap::new(),
+			__filled: HashMap::new(),
+			__book: Arc::default(),
 		}
 	}
 }

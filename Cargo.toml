@@ -40,7 +40,7 @@ v_utils = { version = "2.15.29", features = ["full"] }
 v_exchanges = { path = "../v_exchanges/v_exchanges" }
 v_exchanges_adapters = { path = "../v_exchanges/v_exchanges_adapters" }
 v_exchanges_api_generics = { path = "../v_exchanges/v_exchanges_api_generics" }
-v_utils = { path = "../v_utils/v_utils" }
+v_utils = { path = "../v_utils/v_utils", features = ["io", "xdg", "macros"] }
 v_utils_macros = { path = "../v_utils/v_utils_macros" }
 
 [profile.dev]

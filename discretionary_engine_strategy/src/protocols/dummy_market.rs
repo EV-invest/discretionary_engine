@@ -1,12 +1,13 @@
 //! DummyMarket protocol - sends a single market order.
 
+use std::{fmt, str::FromStr};
+
 use color_eyre::eyre::Result;
 use de_macros::ProtocolWrapper;
 use tokio::{sync::mpsc, task::JoinSet};
 use v_exchanges::core::{Instrument, Symbol};
 use v_utils::{
 	Percent,
-	macros::CompactFormatNamed,
 	trades::{Pair, Side},
 };
 
@@ -14,8 +15,31 @@ use super::{ProtocolOrders, ProtocolTrait, ProtocolType};
 use crate::order_types::{ConceptualMarket, ConceptualOrderPercents, ConceptualOrderType};
 
 /// Literally just sends one market order.
-#[derive(Clone, CompactFormatNamed, Debug, Default, ProtocolWrapper, derive_new::new)]
+#[derive(Clone, Debug, Default, ProtocolWrapper, derive_new::new)]
 pub struct DummyMarket {}
+
+impl fmt::Display for DummyMarket {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "dm")
+	}
+}
+
+impl FromStr for DummyMarket {
+	type Err = eyre::Report;
+
+	fn from_str(spec: &str) -> Result<Self> {
+		let prefix = spec.split(':').next().unwrap_or(spec);
+		if prefix != "dm" {
+			eyre::bail!("expected prefix 'dm', got '{prefix}'");
+		}
+		let rest = spec.strip_prefix("dm").unwrap_or("");
+		let rest = rest.strip_prefix(':').unwrap_or(rest);
+		if !rest.is_empty() {
+			eyre::bail!("DummyMarket takes no parameters, got '{rest}'");
+		}
+		Ok(Self {})
+	}
+}
 
 impl ProtocolTrait for DummyMarketWrapper {
 	type Params = DummyMarket;

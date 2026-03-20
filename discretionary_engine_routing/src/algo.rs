@@ -1,9 +1,15 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+	collections::HashMap,
+	hash::{Hash, Hasher},
+	sync::Arc,
+};
 
 use miette::Result;
 use uuid::Uuid;
-use v_exchanges::{BookDelta, BookSnapshot, ExchangeName, ExchangeOrder, Symbol, Trade, orders::LimitOrder};
+use v_exchanges::{ExchangeName, ExchangeOrder, Symbol, orders::LimitOrder};
 use v_utils::trades::Side;
+
+use crate::data::Book;
 
 #[derive(clap::Args, Debug)]
 pub struct ConceptualLimitArgs {
@@ -32,15 +38,41 @@ pub struct ConceptualLimit {
 
 	/// total per-exchange qty fill value
 	__filled: HashMap<ExchangeName, f32>,
-	__book: Arc<v_exchanges::Book>,
+	__book: Arc<Book>,
 }
+impl PartialEq for ConceptualLimit {
+	fn eq(&self, other: &Self) -> bool {
+		self.id == other.id
+	}
+}
+impl Eq for ConceptualLimit {}
+impl Hash for ConceptualLimit {
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		self.id.hash(state);
+	}
+}
+
 impl ConceptualLimit {
 	/// produces the vec of exact target orders that we want to see currently outstanding
 	///
 	/// no generics or "semantic" stuff at this level, - we produce exact limit orders for exact exchange with exact configuration  
-	pub async fn next(&self, diff: BookUpdate) -> Result<Vec<ExchangeOrder<LimitOrder>>, Error> {
-		//dbg
-		let limit = LimitOrder::new(self.side, self.limit, self.size_q);
+	pub async fn next(&self) -> Result<Vec<ExchangeOrder<LimitOrder>>, Error> {
+		let book = self.__book.tick().await;
+
+		//HACK: the dumbest Chase Limit imaginable
+		//TODO!!!: make proper
+		let price = match self.side {
+			Side::Buy => {
+				let best_bid = book.bids.iter().map(|(p, _)| *p).fold(f64::NEG_INFINITY, f64::max);
+				if best_bid == f64::NEG_INFINITY { self.limit } else { best_bid.min(self.limit) }
+			}
+			Side::Sell => {
+				let best_ask = book.asks.iter().map(|(p, _)| *p).fold(f64::INFINITY, f64::min);
+				if best_ask == f64::INFINITY { self.limit } else { best_ask.max(self.limit) }
+			}
+		};
+
+		let limit = LimitOrder::new(self.side, price, self.size_q);
 		let exchg = ExchangeOrder {
 			order: limit,
 			ticker: v_exchanges::Ticker {
@@ -59,10 +91,6 @@ impl ConceptualLimit {
 /// Error during the conversion of intent into exact orders
 pub enum Error {
 	Other(miette::Report),
-}
-struct BookUpdate {
-	book: BookDelta, // might want to have separate (book, tape) for each exchange
-	tape: Vec<Trade>,
 }
 
 impl From<ConceptualLimitArgs> for ConceptualLimit {

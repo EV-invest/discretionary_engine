@@ -153,6 +153,31 @@ TODO: update to current arch \
 
 when sending or receiving orders every actor attaches a `last_fill_key`. It must match the last key attached to the latest report to this actor by however handles execution of its requests. It's used to ensure that all client's requests are based on the up-to-date knowledge of the relevant state. By internal convention, if the client is yet to receive any reports, it sends `Uuid::default()`.
 
+## `_data`
+loads data. Output boundary is not pegged to any potential input constraints.
+
+Must be possible to run on past data, without any changes to the experience of clients using it.
+
+most performance-critical component for my purposes. 
+
+### arch
+2 types of data this takes care of, - `continuous` and [additional](#additional)
+
+Former is basically just [Book](#book) and associated. While latter can be any type of data, lazily requested.
+
+### Book
+fundamental primitive of the entire data module.
+
+everything wants to have access to it, so performance is paramount.
+
+keeps track of both exact book, and tape. Tape delta are included alongside book deltas in its in-between-snapshot cache.
+
+Every client requests access to a number of history chunks, provided separately. Chunks are taken exactly at the snapshot boundary (rn 15m)
+
+### additional
+Primitives for accessing it are defined in this module, but all awaiting is done by clients, - these are thin wrappers.
+
+any data recovered by any active `additional` module, is persisted to the shared Redis db.
 
 # General Design Components
 ## [Components](https://nautilustrader.io/docs/nightly/concepts/architecture/#component-state-management)

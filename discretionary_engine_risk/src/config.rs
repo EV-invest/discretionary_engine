@@ -1,23 +1,24 @@
 use std::collections::HashMap;
 
 use de_core::config::ExchangeConfig;
+use serde::Deserialize;
 use v_utils::{Percent, macros as v_macros, percent::PercentU};
 
-#[derive(Clone, Debug, v_macros::LiveSettings, v_macros::MyConfigPrimitives, v_macros::Settings)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct AppConfig {
 	pub exchanges: HashMap<String, ExchangeConfig>,
 	#[settings(flatten)]
 	pub risk: Option<RiskConfig>,
 }
 
-#[derive(Clone, Debug, Default, v_macros::MyConfigPrimitives, v_macros::SettingsNested)]
+#[derive(Clone, Debug, Default, Deserialize, v_macros::SettingsNested)]
 pub struct RiskConfig {
 	#[settings(flatten)]
 	pub size: Option<SizeConfig>,
 	pub other_balances: Option<HashMap<String, f64>>,
 }
 
-#[derive(Clone, Debug, Default, v_macros::MyConfigPrimitives, v_macros::SettingsNested)]
+#[derive(Clone, Debug, Default, Deserialize)]
 pub struct SizeConfig {
 	pub default_sl: Percent,
 	#[settings(default = "PercentU::new(0.01).unwrap()")]
@@ -28,7 +29,7 @@ pub struct SizeConfig {
 	pub risk_layers: Option<RiskLayersConfig>,
 }
 
-#[derive(Clone, Debug, v_macros::MyConfigPrimitives, v_macros::SettingsNested, smart_default::SmartDefault)]
+#[derive(Clone, Debug, Deserialize, smart_default::SmartDefault)]
 #[serde(default)]
 pub struct RiskLayersConfig {
 	#[default(true)]

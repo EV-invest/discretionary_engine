@@ -1025,6 +1025,8 @@ name = "de_core"
 version = "0.1.0"
 dependencies = [
  "secrecy",
+ "serde",
+ "strum 0.28.0",
  "v_utils",
 ]
 
@@ -1047,6 +1049,7 @@ dependencies = [
  "insta",
  "jiff",
  "miette",
+ "serde",
  "smart-default",
  "snapshot_fonts",
  "strum 0.28.0",
@@ -1064,6 +1067,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "color-eyre",
+ "de_core",
  "de_macros",
  "derive-new",
  "derive_more",

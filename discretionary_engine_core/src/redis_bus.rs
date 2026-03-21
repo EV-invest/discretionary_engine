@@ -15,26 +15,12 @@ pub async fn publish<T: Serialize>(conn: &mut MultiplexedConnection, stream_key:
 	Ok(id)
 }
 
-async fn init_consumer_group(conn: &mut MultiplexedConnection, stream_key: &str, consumer_group: &str) -> Result<()> {
-	let result: redis::RedisResult<()> = conn.xgroup_create_mkstream(stream_key, consumer_group, "0").await;
-	match result {
-		Ok(()) => Ok(()),
-		Err(e) =>
-			if e.to_string().contains("BUSYGROUP") {
-				Ok(())
-			} else {
-				Err(e).wrap_err("Failed to create consumer group")
-			},
-	}
-}
-
 pub struct StreamSubscriber {
 	conn: MultiplexedConnection,
 	consumer_name: String,
 	stream_key: &'static str,
 	consumer_group: &'static str,
 }
-
 impl StreamSubscriber {
 	pub async fn new(conn: &mut MultiplexedConnection, stream_key: &'static str, consumer_group: &'static str, consumer_name: String) -> Result<Self> {
 		init_consumer_group(conn, stream_key, consumer_group).await?;
@@ -75,5 +61,18 @@ impl StreamSubscriber {
 					Err(e).wrap_err("Failed to read from Redis stream")
 				},
 		}
+	}
+}
+
+async fn init_consumer_group(conn: &mut MultiplexedConnection, stream_key: &str, consumer_group: &str) -> Result<()> {
+	let result: redis::RedisResult<()> = conn.xgroup_create_mkstream(stream_key, consumer_group, "0").await;
+	match result {
+		Ok(()) => Ok(()),
+		Err(e) =>
+			if e.to_string().contains("BUSYGROUP") {
+				Ok(())
+			} else {
+				Err(e).wrap_err("Failed to create consumer group")
+			},
 	}
 }

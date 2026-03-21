@@ -13,7 +13,7 @@ use crate::algo::{ConceptualLimit, ConceptualLimitChangeable};
 pub const STREAM_KEY: &str = "discretionary_engine:routing:commands";
 pub const CONSUMER_GROUP: &str = "routing_consumers";
 
-#[derive(clap::Subcommand, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, clap::Subcommand)]
 pub enum Commands {
 	New(algo::ConceptualLimitArgs),
 	//Q: my current understanding is Adj and Del can attempt to directly change the outstanding ConceptualLimit protocols. Since they are exclusively pulled, and also at this level we do not generate new opinions on delta intent, we can just instantly accept whatever suggestion inputted
@@ -43,16 +43,6 @@ pub struct RoutingHub {
 	conceptual_limits: HashMap<Uuid, ConceptualLimit>,
 	state: ComponentState,
 }
-impl Component for RoutingHub {
-	fn state(&self) -> ComponentState {
-		self.state
-	}
-
-	fn transition_state(&mut self, trigger: ComponentTrigger) {
-		self.state.transition(trigger);
-	}
-}
-
 impl RoutingHub {
 	pub fn new() -> Self {
 		let mut hub = Self {
@@ -138,6 +128,16 @@ impl RoutingHub {
 				}
 			}
 		}
+	}
+}
+
+impl Component for RoutingHub {
+	fn state(&self) -> ComponentState {
+		self.state
+	}
+
+	fn transition_state(&mut self, trigger: ComponentTrigger) {
+		self.state.transition(trigger);
 	}
 }
 

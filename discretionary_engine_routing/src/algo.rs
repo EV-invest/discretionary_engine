@@ -11,7 +11,7 @@ use v_utils::trades::Side;
 
 use crate::data::Book;
 
-#[derive(clap::Args, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(clap::Args, Debug, serde::Deserialize, serde::Serialize)]
 pub struct ConceptualLimitChangeable {
 	/// follows rules for normal limit orders
 	#[arg(long)]
@@ -23,7 +23,7 @@ pub struct ConceptualLimitChangeable {
 	//TODO: the actually juicy parts like the relative cost of price diff vs time
 }
 
-#[derive(clap::Args, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(clap::Args, Debug, serde::Deserialize, serde::Serialize)]
 pub struct ConceptualLimitArgs {
 	/// gimme [Symbol](v_exchanges::Symbol)
 	#[arg(long)]

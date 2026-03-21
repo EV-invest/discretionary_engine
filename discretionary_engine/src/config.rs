@@ -19,6 +19,8 @@ pub struct AppConfig {
 	pub exchanges: HashMap<String, ExchangeConfig>,
 	#[serde(default = "__default_comparison_offset_h")]
 	pub comparison_offset_h: u32,
+	#[serde(default = "__default_redis_port")]
+	pub redis_port: u16,
 	#[settings(flatten)]
 	pub strategy: Option<StrategyConfig>,
 	#[settings(flatten)]
@@ -32,4 +34,8 @@ impl AppConfig {
 
 fn __default_comparison_offset_h() -> u32 {
 	24
+}
+
+fn __default_redis_port() -> u16 {
+	6379
 }

@@ -11,20 +11,26 @@ use v_utils::trades::Side;
 
 use crate::data::Book;
 
-#[derive(clap::Args, Debug)]
-pub struct ConceptualLimitArgs {
+#[derive(clap::Args, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ConceptualLimitChangeable {
 	/// follows rules for normal limit orders
 	#[arg(long)]
 	pub limit: f64,
-
-	/// gimme [Symbol](v_exchanges::Symbol)
-	#[arg(long)]
-	pub symbol: Symbol,
 
 	/// qty size (signed, - side inferred)
 	#[arg(long)]
 	pub qty: f64,
 	//TODO: the actually juicy parts like the relative cost of price diff vs time
+}
+
+#[derive(clap::Args, Debug, serde::Serialize, serde::Deserialize)]
+pub struct ConceptualLimitArgs {
+	/// gimme [Symbol](v_exchanges::Symbol)
+	#[arg(long)]
+	pub symbol: Symbol,
+
+	#[command(flatten)]
+	pub changeable: ConceptualLimitChangeable,
 }
 
 #[derive(Clone, Debug, derive_new::new)]
@@ -37,13 +43,32 @@ pub struct ConceptualLimit {
 	side: Side,
 
 	/// total per-exchange qty fill value
-	__filled: HashMap<ExchangeName, f32>,
+	__filled: HashMap<ExchangeName, f64>,
 	__book: Arc<Book>,
 }
 impl ConceptualLimit {
+	pub fn adjust(&mut self, adj: ConceptualLimitChangeable) -> std::result::Result<(), crate::InvalidRoutingError> {
+		let (size, side) = match adj.qty {
+			p if p > 0. => (p, Side::Buy),
+			p if p < 0. => (-p, Side::Sell),
+			_ => unreachable!("should've checked before here, - where we still can report to user"),
+		};
+
+		let total_filled: f64 = self.__filled.values().map(|v| *v as f64).sum();
+		if side != self.side && total_filled > 0.0 {
+			//return Err(crate::InvalidRoutingError::AdjustmentWouldReverse); //Q: do we care to go freak out and go into HobbleMode when we simply need to revrese the position?
+			tracing::warn!("requested adjustment reverses the acquisition direction. Might not be intentional or desirable.\nAlready have {total_filled:?}")
+		}
+
+		self.limit = adj.limit;
+		self.size_q = size;
+		self.side = side;
+		Ok(())
+	}
+
 	/// produces the vec of exact target orders that we want to see currently outstanding
 	///
-	/// no generics or "semantic" stuff at this level, - we produce exact limit orders for exact exchange with exact configuration  
+	/// no generics or "semantic" stuff at this level, - we produce exact limit orders for exact exchange with exact configuration
 	pub async fn next(&self) -> Result<Vec<ExchangeOrder<LimitOrder>>, Error> {
 		let book = self.__book.tick().await;
 
@@ -95,14 +120,14 @@ pub enum Error {
 
 impl From<ConceptualLimitArgs> for ConceptualLimit {
 	fn from(v: ConceptualLimitArgs) -> Self {
-		let (size, side) = match v.qty {
+		let (size, side) = match v.changeable.qty {
 			p if p > 0. => (p, Side::Buy),
 			p if p < 0. => (-p, Side::Sell),
 			_ => unreachable!("should've checked before here, - where we still can report to user"),
 		};
 		ConceptualLimit {
 			side,
-			limit: v.limit,
+			limit: v.changeable.limit,
 			size_q: size,
 			symbol: v.symbol,
 

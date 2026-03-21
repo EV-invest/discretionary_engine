@@ -72,7 +72,6 @@ async fn main() -> Result<()> {
 		Commands::Listen => {
 			info!("Starting strategy, listening for commands on Redis port {}...", cli.redis_port);
 
-			// Generate a unique consumer name
 			let consumer_name = format!("strategy-{}", std::process::id());
 
 			let mut conn = redis_bus::connect(cli.redis_port).await?;
@@ -83,10 +82,10 @@ async fn main() -> Result<()> {
 			//LOOP: main loop
 			loop {
 				tokio::select! {
-					result = subscriber.next() => {
+					result = subscriber.next::<String>() => {
 						match result {
-							Ok(Some((id, cmd))) => {
-								info!("Received command [{id}]: {cmd}");
+							Ok(Some(cmd)) => {
+								info!("Received command: {cmd}");
 								// TODO: Parse and forward to Nautilus Actor
 								println!("[STRATEGY] Received: {cmd}");
 							}

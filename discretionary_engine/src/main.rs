@@ -56,6 +56,8 @@ struct Cli {
 enum Commands {
 	/// Start the main program
 	Run(PositionArgs),
+	/// Long-running service: initializes exchanges, starts RoutingHub, listens for commands
+	Service,
 	/// Adjust an existing position size smartly
 	AdjustPos(adjust_pos::AdjustPosArgs),
 	/// Close position completely
@@ -70,7 +72,7 @@ enum Commands {
 		#[command(subcommand)]
 		command: StrategyCommands,
 	},
-	/// Routing layer. Not really meant to be accessed directly, going back and forth on whether it should be exposed
+	/// Routing commands (fire-and-forget, publishes to running service via Redis)
 	Routing {
 		#[command(subcommand)]
 		command: de_routing::Commands,
@@ -146,7 +148,8 @@ async fn main() -> Result<()> {
 	}
 	if let Commands::Routing { command } = cli.command {
 		utils::init_subscriber(None);
-		exit_on_error(de_routing::main(command).map_err(|e| color_eyre::eyre::eyre!(e)));
+		let redis_port = live_settings.config()?.redis_port;
+		exit_on_error(de_routing::publish(command, redis_port).await);
 		return Ok(());
 	}
 
@@ -173,10 +176,15 @@ async fn main() -> Result<()> {
 
 	exit_on_error(match cli.command {
 		Commands::Run(args) => command_new(args, live_settings.clone(), tx, exchanges_arc).await,
+		Commands::Service => {
+			let redis_port = live_settings.config()?.redis_port;
+			let mut routing_hub = de_routing::RoutingHub::new();
+			routing_hub.run(redis_port).await
+		}
 		Commands::AdjustPos(adjust_pos_args) => adjust_pos::main(adjust_pos_args, live_settings.clone(), cli.testnet).await,
 		Commands::Nuke(nuke_args) => nuke::main(nuke_args, live_settings.clone(), cli.testnet).await,
 		Commands::Strategy { command } => {
-			let redis_port = live_settings.config()?.strategy.as_ref().map(|s| s.redis_port).unwrap_or(6379);
+			let redis_port = live_settings.config()?.redis_port;
 			match command {
 				StrategyCommands::Start => de_strategy::commands::start_listener(redis_port).await,
 				StrategyCommands::Submit(args) => {

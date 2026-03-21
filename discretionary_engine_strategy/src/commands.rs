@@ -43,18 +43,18 @@ pub async fn start_listener(redis_port: u16) -> Result<()> {
 
 	loop {
 		tokio::select! {
-			result = subscriber.next() => {
+			result = subscriber.next::<String>() => {
 				match result {
-					Ok(Some((id, cmd))) => {
-						info!("Received command [{}]: {}", id, cmd);
+					Ok(Some(cmd)) => {
+						info!("Received command: {cmd}");
 						// TODO: Parse and forward to Nautilus Actor
-						println!("[STRATEGY] Received: {}", cmd);
+						println!("[STRATEGY] Received: {cmd}");
 					}
 					Ok(None) => {
 						// Timeout, continue waiting
 					}
 					Err(e) => {
-						tracing::error!("Error reading command: {}", e);
+						tracing::error!("Error reading command: {e}");
 					}
 				}
 			}

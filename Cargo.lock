@@ -1025,9 +1025,13 @@ checksum = "d7a1e2f27636f116493b8b860f5546edb47c8d8f8ea73e1d2a20be88e28d1fea"
 name = "de_core"
 version = "0.1.0"
 dependencies = [
+ "color-eyre",
+ "redis",
  "secrecy",
  "serde",
+ "serde_json",
  "strum 0.28.0",
+ "tokio",
  "v_utils",
 ]
 
@@ -1077,12 +1081,10 @@ dependencies = [
  "miette",
  "nautilus-bybit",
  "nautilus-model",
- "redis",
  "serde",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
- "tracing-subscriber",
  "uuid",
  "v_exchanges",
  "v_utils",
@@ -1094,6 +1096,7 @@ version = "1.0.0"
 dependencies = [
  "clap",
  "color-eyre",
+ "de_core",
  "de_macros",
  "derive-new",
  "derive_more",

@@ -21,9 +21,7 @@ nautilus-model = { path = "../libs/nautilus_trader/crates/model" } #dbg
 
 derive-new = "0.7"
 futures-util = "0.3.31"
-redis = { version = "^1.0", features = ["tokio-comp", "streams"] }
 tokio = { version = "^1.49.0", features = ["full", "signal"] }
-tracing-subscriber = { version = "^0.3.22", features = ["fmt", "env-filter"] }
 
 clap.workspace = true
 color-eyre.workspace = true

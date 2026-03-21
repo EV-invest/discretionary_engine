@@ -18,18 +18,6 @@ pub enum Commands {
 	//Remove,
 }
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum RoutingError {
-	Invalid(InvalidRoutingError),
-	Other(miette::Error),
-}
-
-#[derive(Debug, derive_more::Display)]
-pub enum InvalidRoutingError {
-	#[display("adjustment would reverse position")]
-	AdjustmentWouldReverse,
-}
-
 pub fn main(cmd: Commands) -> Result<(), RoutingError> {
 	match cmd {
 		Commands::New(args) => {
@@ -47,6 +35,17 @@ pub fn main(cmd: Commands) -> Result<(), RoutingError> {
 		Commands::Adj => Err(RoutingError::Other(miette::miette!("todo"))),
 		Commands::Del => Err(RoutingError::Other(miette::miette!("todo"))),
 	}
+}
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum RoutingError {
+	Invalid(InvalidRoutingError),
+	Other(miette::Error),
+}
+
+#[derive(Debug, derive_more::Display)]
+pub enum InvalidRoutingError {
+	#[display("adjustment would reverse position")]
+	AdjustmentWouldReverse,
 }
 
 #[derive(Debug, derive_more::Deref)]

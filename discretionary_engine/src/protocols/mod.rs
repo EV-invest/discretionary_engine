@@ -1,3 +1,21 @@
+mod approaching_limit;
+mod dummy_market;
+mod sar;
+mod trailing_stop;
+use std::{collections::HashSet, str::FromStr};
+
+use approaching_limit::{ApproachingLimit, ApproachingLimitWrapper};
+use color_eyre::eyre::{Result, bail};
+use dummy_market::DummyMarketWrapper;
+use sar::{Sar, SarWrapper};
+use tokio::{sync::mpsc, task::JoinSet};
+use tracing::instrument;
+use trailing_stop::{TrailingStop, TrailingStopWrapper};
+use uuid::Uuid;
+use v_utils::{Percent, trades::Side};
+
+use crate::exchange_apis::order_types::{ConceptualOrder, ConceptualOrderPercents, ProtocolOrderId};
+
 pub trait ProtocolTrait {
 	type Params;
 	/// Requested orders are being sent over the mspc with uuid of the protocol on each batch, as we want to replace the previous requested batch if any.
@@ -223,24 +241,6 @@ impl ProtocolOrders {
 		RecalculatedAllocation { orders, leftovers: None }
 	}
 }
-
-mod approaching_limit;
-mod dummy_market;
-mod sar;
-mod trailing_stop;
-use std::{collections::HashSet, str::FromStr};
-
-use approaching_limit::{ApproachingLimit, ApproachingLimitWrapper};
-use color_eyre::eyre::{Result, bail};
-use dummy_market::DummyMarketWrapper;
-use sar::{Sar, SarWrapper};
-use tokio::{sync::mpsc, task::JoinSet};
-use tracing::instrument;
-use trailing_stop::{TrailingStop, TrailingStopWrapper};
-use uuid::Uuid;
-use v_utils::{Percent, trades::Side};
-
-use crate::exchange_apis::order_types::{ConceptualOrder, ConceptualOrderPercents, ProtocolOrderId};
 
 // HACK: Protocol enum. Seems suboptimal {\{{
 //TODO!!!!!: pretty sure we can just make a dyn trait. Might need to use `dyno` crate or sth.

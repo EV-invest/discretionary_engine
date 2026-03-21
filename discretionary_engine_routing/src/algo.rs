@@ -40,18 +40,6 @@ pub struct ConceptualLimit {
 	__filled: HashMap<ExchangeName, f32>,
 	__book: Arc<Book>,
 }
-impl PartialEq for ConceptualLimit {
-	fn eq(&self, other: &Self) -> bool {
-		self.id == other.id
-	}
-}
-impl Eq for ConceptualLimit {}
-impl Hash for ConceptualLimit {
-	fn hash<H: Hasher>(&self, state: &mut H) {
-		self.id.hash(state);
-	}
-}
-
 impl ConceptualLimit {
 	/// produces the vec of exact target orders that we want to see currently outstanding
 	///
@@ -82,6 +70,18 @@ impl ConceptualLimit {
 			expected_fee_usd: None,
 		};
 		Ok(vec![exchg])
+	}
+}
+
+impl PartialEq for ConceptualLimit {
+	fn eq(&self, other: &Self) -> bool {
+		self.id == other.id
+	}
+}
+impl Eq for ConceptualLimit {}
+impl Hash for ConceptualLimit {
+	fn hash<H: Hasher>(&self, state: &mut H) {
+		self.id.hash(state);
 	}
 }
 

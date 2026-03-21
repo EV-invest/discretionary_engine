@@ -3,88 +3,6 @@
 
 use std::fmt;
 
-/// The state of a component within the system.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, strum::Display)]
-pub enum ComponentState {
-	#[default]
-	PreInitialized,
-	Ready,
-	Starting,
-	Running,
-	Stopping,
-	Stopped,
-	Resuming,
-	Resetting,
-	Disposing,
-	Disposed,
-	Degrading,
-	Degraded,
-	Faulting,
-	Faulted,
-}
-
-/// A trigger condition for a component state transition.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, strum::Display)]
-pub enum ComponentTrigger {
-	Initialize,
-	Start,
-	StartCompleted,
-	Stop,
-	StopCompleted,
-	Resume,
-	ResumeCompleted,
-	Reset,
-	ResetCompleted,
-	Dispose,
-	DisposeCompleted,
-	Degrade,
-	DegradeCompleted,
-	Fault,
-	FaultCompleted,
-}
-
-#[rustfmt::skip]
-impl ComponentState {
-	/// Transition the state machine with the given `trigger`.
-	///
-	/// # Panics
-	///
-	/// Panics if `trigger` is invalid for the current state.
-	pub fn transition(&mut self, trigger: ComponentTrigger) -> Self {
-		let new_state = match (&self, trigger) {
-			(Self::PreInitialized, ComponentTrigger::Initialize) => Self::Ready,
-			(Self::Ready, ComponentTrigger::Reset) => Self::Resetting,
-			(Self::Ready, ComponentTrigger::Start) => Self::Starting,
-			(Self::Ready, ComponentTrigger::Dispose) => Self::Disposing,
-			(Self::Resetting, ComponentTrigger::ResetCompleted) => Self::Ready,
-			(Self::Starting, ComponentTrigger::StartCompleted) => Self::Running,
-			(Self::Starting, ComponentTrigger::Stop) => Self::Stopping,
-			(Self::Starting, ComponentTrigger::Fault) => Self::Faulting,
-			(Self::Running, ComponentTrigger::Stop) => Self::Stopping,
-			(Self::Running, ComponentTrigger::Degrade) => Self::Degrading,
-			(Self::Running, ComponentTrigger::Fault) => Self::Faulting,
-			(Self::Resuming, ComponentTrigger::Stop) => Self::Stopping,
-			(Self::Resuming, ComponentTrigger::ResumeCompleted) => Self::Running,
-			(Self::Resuming, ComponentTrigger::Fault) => Self::Faulting,
-			(Self::Stopping, ComponentTrigger::StopCompleted) => Self::Stopped,
-			(Self::Stopping, ComponentTrigger::Fault) => Self::Faulting,
-			(Self::Stopped, ComponentTrigger::Reset) => Self::Resetting,
-			(Self::Stopped, ComponentTrigger::Resume) => Self::Resuming,
-			(Self::Stopped, ComponentTrigger::Dispose) => Self::Disposing,
-			(Self::Stopped, ComponentTrigger::Fault) => Self::Faulting,
-			(Self::Degrading, ComponentTrigger::DegradeCompleted) => Self::Degraded,
-			(Self::Degraded, ComponentTrigger::Resume) => Self::Resuming,
-			(Self::Degraded, ComponentTrigger::Stop) => Self::Stopping,
-			(Self::Degraded, ComponentTrigger::Fault) => Self::Faulting,
-			(Self::Disposing, ComponentTrigger::DisposeCompleted) => Self::Disposed,
-			(Self::Faulting, ComponentTrigger::FaultCompleted) => Self::Faulted,
-			_ => panic!("Invalid state transition: {self} -> {trigger}"),
-		};
-		*self = new_state;
-		new_state
-	}
-}
-
 /// Components have state and lifecycle management capabilities.
 pub trait Component: fmt::Debug {
 	fn state(&self) -> ComponentState;
@@ -139,4 +57,84 @@ pub trait Component: fmt::Debug {
 	fn on_degrade(&mut self) {}
 	fn on_fault(&mut self) {}
 	fn on_dispose(&mut self) {}
+}
+/// The state of a component within the system.
+#[derive(Clone, Copy, Debug, Default, strum::Display, Eq, Hash, PartialEq)]
+pub enum ComponentState {
+	#[default]
+	PreInitialized,
+	Ready,
+	Starting,
+	Running,
+	Stopping,
+	Stopped,
+	Resuming,
+	Resetting,
+	Disposing,
+	Disposed,
+	Degrading,
+	Degraded,
+	Faulting,
+	Faulted,
+}
+#[rustfmt::skip]
+impl ComponentState {
+	/// Transition the state machine with the given `trigger`.
+	///
+	/// # Panics
+	///
+	/// Panics if `trigger` is invalid for the current state.
+	pub fn transition(&mut self, trigger: ComponentTrigger) -> Self {
+		let new_state = match (&self, trigger) {
+			(Self::PreInitialized, ComponentTrigger::Initialize) => Self::Ready,
+			(Self::Ready, ComponentTrigger::Reset) => Self::Resetting,
+			(Self::Ready, ComponentTrigger::Start) => Self::Starting,
+			(Self::Ready, ComponentTrigger::Dispose) => Self::Disposing,
+			(Self::Resetting, ComponentTrigger::ResetCompleted) => Self::Ready,
+			(Self::Starting, ComponentTrigger::StartCompleted) => Self::Running,
+			(Self::Starting, ComponentTrigger::Stop) => Self::Stopping,
+			(Self::Starting, ComponentTrigger::Fault) => Self::Faulting,
+			(Self::Running, ComponentTrigger::Stop) => Self::Stopping,
+			(Self::Running, ComponentTrigger::Degrade) => Self::Degrading,
+			(Self::Running, ComponentTrigger::Fault) => Self::Faulting,
+			(Self::Resuming, ComponentTrigger::Stop) => Self::Stopping,
+			(Self::Resuming, ComponentTrigger::ResumeCompleted) => Self::Running,
+			(Self::Resuming, ComponentTrigger::Fault) => Self::Faulting,
+			(Self::Stopping, ComponentTrigger::StopCompleted) => Self::Stopped,
+			(Self::Stopping, ComponentTrigger::Fault) => Self::Faulting,
+			(Self::Stopped, ComponentTrigger::Reset) => Self::Resetting,
+			(Self::Stopped, ComponentTrigger::Resume) => Self::Resuming,
+			(Self::Stopped, ComponentTrigger::Dispose) => Self::Disposing,
+			(Self::Stopped, ComponentTrigger::Fault) => Self::Faulting,
+			(Self::Degrading, ComponentTrigger::DegradeCompleted) => Self::Degraded,
+			(Self::Degraded, ComponentTrigger::Resume) => Self::Resuming,
+			(Self::Degraded, ComponentTrigger::Stop) => Self::Stopping,
+			(Self::Degraded, ComponentTrigger::Fault) => Self::Faulting,
+			(Self::Disposing, ComponentTrigger::DisposeCompleted) => Self::Disposed,
+			(Self::Faulting, ComponentTrigger::FaultCompleted) => Self::Faulted,
+			_ => panic!("Invalid state transition: {self} -> {trigger}"),
+		};
+		*self = new_state;
+		new_state
+	}
+}
+
+/// A trigger condition for a component state transition.
+#[derive(Clone, Copy, Debug, strum::Display, Eq, Hash, PartialEq)]
+pub enum ComponentTrigger {
+	Initialize,
+	Start,
+	StartCompleted,
+	Stop,
+	StopCompleted,
+	Resume,
+	ResumeCompleted,
+	Reset,
+	ResetCompleted,
+	Dispose,
+	DisposeCompleted,
+	Degrade,
+	DegradeCompleted,
+	Fault,
+	FaultCompleted,
 }

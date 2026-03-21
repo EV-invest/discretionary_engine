@@ -6,13 +6,39 @@
 #![feature(type_changing_struct_update)]
 #![feature(stmt_expr_attributes)]
 
+mod adjust_pos;
+mod bybit_common;
+mod chase_limit;
 pub mod config;
 pub mod exchange_apis;
+mod nuke;
 pub mod positions;
 pub mod protocols;
+mod risk;
+mod shell_init;
 pub mod utils;
-pub static MAX_CONNECTION_FAILURES: u32 = 10;
+mod ws_chase_limit;
+use std::{
+	sync::{Arc, atomic::AtomicU32},
+	time::Duration,
+};
+
+use clap::{Args, Parser, Subcommand};
+use color_eyre::eyre::{Context, Result, bail};
+use config::{LiveSettings, SettingsFlags};
+use exchange_apis::{exchanges::Exchanges, hub, hub::PositionToHub};
+use positions::*;
+use tokio::{sync::mpsc, task::JoinSet};
+use tracing::{info, instrument};
+use v_utils::{
+	log,
+	trades::{Side, Timeframe},
+	utils::exit_on_error,
+};
+
 pub static MUT_CURRENT_CONNECTION_FAILURES: AtomicU32 = AtomicU32::new(0);
+
+pub static MAX_CONNECTION_FAILURES: u32 = 10;
 #[derive(Parser)]
 #[command(author, version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"), about, long_about = None)]
 struct Cli {
@@ -169,30 +195,6 @@ async fn main() -> Result<()> {
 
 	Ok(())
 }
-mod adjust_pos;
-mod bybit_common;
-mod chase_limit;
-mod nuke;
-mod risk;
-mod shell_init;
-mod ws_chase_limit;
-use std::{
-	sync::{Arc, atomic::AtomicU32},
-	time::Duration,
-};
-
-use clap::{Args, Parser, Subcommand};
-use color_eyre::eyre::{Context, Result, bail};
-use config::{LiveSettings, SettingsFlags};
-use exchange_apis::{exchanges::Exchanges, hub, hub::PositionToHub};
-use positions::*;
-use tokio::{sync::mpsc, task::JoinSet};
-use tracing::{info, instrument};
-use v_utils::{
-	log,
-	trades::{Side, Timeframe},
-	utils::exit_on_error,
-};
 
 // TODO: change to initializing exchange sockets once, then just have a loop listening on localhost, that accepts new positions or modification requests.
 

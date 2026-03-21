@@ -2,10 +2,6 @@
 use tracing::{info, trace};
 type HmacSha256 = Hmac<Sha256>;
 pub mod info;
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct BinanceExchange {
-	pub binance_futures_info: BinanceExchangeFutures,
-}
 impl BinanceExchange {
 	#[instrument(skip_all)]
 	pub async fn init(live_settings: Arc<LiveSettings>) -> Result<Self> {
@@ -54,228 +50,105 @@ impl BinanceExchange {
 	}
 }
 
-#[instrument(skip(key, secret))]
-pub async fn signed_request<S: AsRef<str>>(http_method: reqwest::Method, endpoint_str: &str, mut params: HashMap<&'static str, String>, key: S, secret: S) -> Result<reqwest::Response> {
-	let mut headers = HeaderMap::new();
-	headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json;charset=utf-8"));
-	headers.insert("X-MBX-APIKEY", HeaderValue::from_str(key.as_ref())?);
-	let client = reqwest::Client::builder().default_headers(headers).build()?;
-
-	let max_retries = 10;
-	let mut retry_delay = std::time::Duration::from_secs(1);
-	let mut encountered_cloudfront_error = false;
-
-	for attempt in 0..max_retries {
-		let time_ms = Utc::now().timestamp_millis();
-		params.insert("timestamp", format!("{time_ms}"));
-
-		let query_string = serde_urlencoded::to_string(&params)?;
-
-		let mut mac = HmacSha256::new_from_slice(secret.as_ref().as_bytes())?;
-		mac.update(query_string.as_bytes());
-		let mac_bytes = mac.finalize().into_bytes();
-		let signature = hex::encode(mac_bytes);
-
-		let url = format!("{endpoint_str}?{query_string}&signature={signature}");
-		let r = client.request(http_method.clone(), &url).send().await?;
-
-		if r.status().is_success() {
-			return Ok(r);
-		}
-
-		let error_html: String = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
-		if error_html.contains("<TITLE>ERROR: The request could not be satisfied</TITLE>") && attempt <= max_retries {
-			if !encountered_cloudfront_error {
-				tracing::warn!("Encountered CloudFront error. Oh boy, here we go again.");
-				encountered_cloudfront_error = true;
-			} else {
-				tracing::debug!("CloudFront error encountered again. Attempting retry #{attempt} in {retry_delay:?}");
-			}
-			tokio::time::sleep(retry_delay).await;
-			retry_delay += std::time::Duration::from_secs(1);
-			continue;
-		}
-
-		return Err(unexpected_response_str(&error_html));
-	}
-
-	bail!("Max retries reached. Request failed.")
-}
-#[instrument]
-pub async fn unsigned_request(http_method: reqwest::Method, endpoint_str: &str, params: HashMap<&str, String>) -> Result<reqwest::Response> {
-	debug!("requesting unsigned\nEndpoint: {endpoint_str}\nParams: {:?}", &params);
-	let client = reqwest::Client::new();
-	let _ = &params;
-	let r: reqwest::Response = client.request(http_method, endpoint_str).send().await?;
-
-	if r.status().is_success() {
-		return Ok(r);
-	}
-
-	let error_html: String = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
-	Err(unexpected_response_str(&error_html))
-}
-#[instrument(skip(key, secret))]
-pub async fn get_balance(key: String, secret: String, market: Market) -> Result<f64> {
-	let mut params = HashMap::<&str, String>::new();
-	params.insert("recvWindow", "60000".to_owned());
-	match market {
-		Market::BinanceFutures => {
-			let base_url = market.get_base_url();
-			let url = base_url.join("fapi/v3/balance")?;
-
-			let r = signed_request(reqwest::Method::GET, url.as_str(), params, key, secret).await?;
-			let asset_balances: Vec<FuturesBalance> = deser_reqwest::<Vec<FuturesBalance>>(r).await?;
-
-			let mut total_balance = 0.0;
-			for asset in asset_balances {
-				total_balance += asset.balance.parse::<f64>()?;
-			}
-			Ok(total_balance)
-		}
-		Market::BinanceSpot => {
-			let base_url = market.get_base_url();
-			let url = base_url.join("/api/v3/account")?;
-
-			let r = signed_request(reqwest::Method::GET, url.as_str(), params, key, secret).await?;
-			let account_details: SpotAccountDetails = deser_reqwest(r).await?;
-			let asset_balances = account_details.balances;
-
-			let mut total_balance = 0.0;
-			for asset in asset_balances {
-				total_balance += asset.free.parse::<f64>()?;
-				total_balance += asset.locked.parse::<f64>()?;
-			}
-			Ok(total_balance)
-		}
-		Market::BinanceMargin => {
-			let base_url = market.get_base_url();
-			let url = base_url.join("/sapi/v1/margin/account")?;
-
-			let r = signed_request(reqwest::Method::GET, url.as_str(), params, key, secret).await?;
-			let account_details: MarginAccountDetails = deser_reqwest(r).await?;
-			let total_balance: f64 = account_details.TotalCollateralValueInUSDT.parse()?;
-
-			Ok(total_balance)
-		}
+impl FuturesPositionResponse {
+	pub fn get_url() -> Url {
+		let base_url = Market::BinanceFutures.get_base_url();
+		// the way this works - is we sumbir "New" and "Query" to the same endpoint. The action is then determined by the presence of the orderId parameter.
+		base_url.join("/fapi/v1/order").unwrap()
 	}
 }
-#[instrument]
-pub async fn futures_price(asset: &str) -> Result<f64> {
-	debug!("requesting futures price"); //doesn't flush immediately, needs fixing to be useful
-	let symbol = crate::exchange_apis::Symbol {
-		base: asset.to_string(),
-		quote: "USDT".to_string(),
-		market: Market::BinanceFutures,
-	};
-	let base_url = Market::BinanceFutures.get_base_url();
-	let url = base_url.join("/fapi/v2/ticker/price")?;
 
-	let mut params = HashMap::<&str, String>::new();
-	params.insert("symbol", symbol.to_string());
+mod orders;
+use std::{
+	collections::HashMap,
+	sync::{Arc, RwLock},
+};
 
-	let r = unsigned_request(Method::GET, url.as_str(), params).await?;
-	let price_response: PriceResponse = deser_reqwest(r).await?;
+use chrono::Utc;
+use color_eyre::eyre::{Result, bail};
+use hmac::{Hmac, Mac};
+use info::BinanceExchangeFutures;
+pub use orders::*;
+use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
+use reqwest::{
+	Method,
+	header::{CONTENT_TYPE, HeaderMap, HeaderValue},
+};
+use serde::{Deserialize, Serialize};
+use serde_json::{Number, Value};
+use serde_with::{DisplayFromStr, serde_as};
+use sha2::Sha256;
+use tokio::{
+	select,
+	sync::{mpsc, watch},
+	task::JoinSet,
+};
+use tracing::{debug, instrument, warn};
+use url::Url;
+use uuid::Uuid;
+use v_utils::{Percent, trades::Ohlc};
 
-	Ok(price_response.price)
+use super::{
+	hub::{ExchangeToHub, HubToExchange},
+	order_types::{ConceptualMarket, ConceptualOrderType, IdRequirements},
+};
+use crate::{
+	MAX_CONNECTION_FAILURES, PositionOrderId,
+	config::LiveSettings,
+	exchange_apis::{Market, order_types::Order},
+	utils::{deser_reqwest, report_connection_problem, unexpected_response_str},
+};
+
+#[serde_as]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FuturesPositionResponse {
+	pub client_order_id: Option<String>,
+	pub cum_qty: Option<String>, // weird field, included at random (json api things)
+	pub cum_quote: String,       // total filled quote asset
+	#[serde_as(as = "DisplayFromStr")]
+	pub executed_qty: f64, // total filled base asset
+	pub order_id: i64,
+	pub avg_price: Option<String>,
+	pub orig_qty: String,
+	pub price: String,
+	pub reduce_only: Value,
+	pub side: String,
+	pub position_side: Option<String>, // only sent when in hedge mode
+	pub status: OrderStatus,
+	pub stop_price: String,
+	pub close_position: Value,
+	pub symbol: String,
+	pub time_in_force: String,
+	pub r#type: String,
+	pub orig_type: String,
+	pub activate_price: Option<f64>, // only returned on TRAILING_STOP_MARKET order
+	pub price_rate: Option<f64>,     // only returned on TRAILING_STOP_MARKET order
+	pub update_time: i64,
+	pub working_type: Option<String>, // no clue what this is
+	pub price_protect: bool,
+	pub price_match: Option<String>, // huh
+	pub self_trade_prevention_mode: Option<String>,
+	pub good_till_date: Option<i64>,
 }
-#[instrument]
-pub async fn close_orders(key: String, secret: String, orders: &[BinanceOrder]) -> Result<()> {
-	let base_url = Market::BinanceFutures.get_base_url();
-	let url = base_url.join("/fapi/v1/order").unwrap();
 
-	let handles = orders.iter().map(|o| {
-		let mut params = HashMap::<&str, String>::new();
-		params.insert("symbol", o.base_info.symbol.to_string());
-		params.insert("orderId", o.binance_id.unwrap().to_string());
-		params.insert("recvWindow", "60000".to_owned()); // dbg currently they are having some issues with response speed
-
-		signed_request(reqwest::Method::DELETE, url.as_str(), params, key.clone(), secret.clone())
-	});
-	for handle in handles {
-		let r = handle.await?;
-		let _: CancelOrdersResponse = deser_reqwest(r).await?;
-	}
-
-	Ok(())
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub enum OrderStatus {
+	#[default]
+	#[serde(rename = "NEW")]
+	New,
+	#[serde(rename = "PARTIALLY_FILLED")]
+	PartiallyFilled,
+	#[serde(rename = "FILLED")]
+	Filled,
+	#[serde(rename = "CANCELED")]
+	Canceled,
+	#[serde(rename = "EXPIRED")]
+	Expired,
+	#[serde(rename = "EXPIRED_IN_MATCH")]
+	ExpiredInMatch,
 }
-#[instrument(skip_all)]
-pub async fn get_futures_positions(key: String, secret: String) -> Result<HashMap<String, f64>> {
-	let url = FuturesAllPositionsResponse::get_url();
 
-	let r = signed_request(Method::GET, url.as_str(), HashMap::new(), key, secret).await?;
-	let positions: Vec<FuturesAllPositionsResponse> = deser_reqwest(r).await?;
-
-	let mut positions_map = HashMap::<String, f64>::new();
-	for position in positions {
-		let symbol = position.symbol.clone();
-		let qty = position.positionAmt.parse::<f64>()?;
-		positions_map.entry(symbol).and_modify(|e| *e += qty).or_insert(qty);
-	}
-	Ok(positions_map)
-}
-#[instrument(skip(key, secret, binance_exchange_arc))]
-pub async fn post_futures_order(key: String, secret: String, order: &Order<PositionOrderId>, binance_exchange_arc: Arc<RwLock<BinanceExchange>>) -> Result<BinanceOrder> {
-	debug!("Posting order");
-	let url = FuturesPositionResponse::get_url();
-
-	let mut binance_order = BinanceOrder::from_standard(order.clone(), binance_exchange_arc).await;
-	let mut params = binance_order.to_params();
-	params.insert("recvWindow", "60000".to_owned()); // dbg currently they/me are having some issues with response speed
-
-	let r = signed_request(reqwest::Method::POST, url.as_str(), params, key, secret).await?;
-	let response: FuturesPositionResponse = deser_reqwest(r).await?;
-	binance_order.binance_id = Some(response.order_id);
-	Ok(binance_order)
-}
-/// Normally, the only cases where the return from this poll is going to be _reacted_ to, is when response.status == OrderStatus::Filled or an error is returned.
-// TODO!: translate to websockets
-#[instrument(skip(key, secret))]
-pub async fn poll_futures_order<S: AsRef<str>>(key: S, secret: S, binance_order: &BinanceOrder) -> Result<FuturesPositionResponse> {
-	let url = FuturesPositionResponse::get_url();
-
-	let mut params = HashMap::<&str, String>::new();
-	params.insert("symbol", binance_order.base_info.symbol.to_string());
-	params.insert("orderId", format!("{}", &binance_order.binance_id.unwrap()));
-	params.insert("recvWindow", "20000".to_owned()); // dbg currently they are having some issues with response speed
-	debug!("Polling order");
-
-	let r = signed_request(reqwest::Method::GET, url.as_str(), params, key, secret).await?;
-	let response: FuturesPositionResponse = deser_reqwest(r).await?;
-	Ok(response)
-}
-#[derive(Debug, Deserialize)]
-pub struct BinanceKline {
-	open_time: i64,
-	open: String,
-	high: String,
-	low: String,
-	close: String,
-	volume: String,
-	close_time: i64,
-	quote_asset_volume: String,
-	number_of_trades: i64,
-	taker_buy_base_asset_volume: String,
-	taker_buy_quote_asset_volume: String,
-	ignore: String,
-}
-#[instrument]
-pub async fn get_historic_klines(symbol: String, interval: String, limit: usize) -> Result<Vec<BinanceKline>> {
-	let base_url = Market::BinanceFutures.get_base_url();
-	let endpoint = base_url.join("/fapi/v1/klines")?;
-
-	let params = vec![("symbol", symbol), ("interval", interval), ("limit", limit.to_string())];
-
-	let response = unsigned_request(Method::GET, endpoint.as_str(), params.into_iter().collect()).await?;
-
-	if !response.status().is_success() {
-		let error_body = response.text().await?;
-		bail!("Binance API error: {error_body}");
-	}
-
-	let klines: Vec<BinanceKline> = response.json().await?;
-	Ok(klines)
-}
 /// NB: must be communicating back to the hub, can't shortcut and talk back directly to positions.
 #[instrument(skip_all)]
 pub async fn binance_runtime(
@@ -380,102 +253,243 @@ pub async fn binance_runtime(
 		}
 	}
 }
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub enum OrderStatus {
-	#[default]
-	#[serde(rename = "NEW")]
-	New,
-	#[serde(rename = "PARTIALLY_FILLED")]
-	PartiallyFilled,
-	#[serde(rename = "FILLED")]
-	Filled,
-	#[serde(rename = "CANCELED")]
-	Canceled,
-	#[serde(rename = "EXPIRED")]
-	Expired,
-	#[serde(rename = "EXPIRED_IN_MATCH")]
-	ExpiredInMatch,
+
+#[instrument]
+pub async fn get_historic_klines(symbol: String, interval: String, limit: usize) -> Result<Vec<BinanceKline>> {
+	let base_url = Market::BinanceFutures.get_base_url();
+	let endpoint = base_url.join("/fapi/v1/klines")?;
+
+	let params = vec![("symbol", symbol), ("interval", interval), ("limit", limit.to_string())];
+
+	let response = unsigned_request(Method::GET, endpoint.as_str(), params.into_iter().collect()).await?;
+
+	if !response.status().is_success() {
+		let error_body = response.text().await?;
+		bail!("Binance API error: {error_body}");
+	}
+
+	let klines: Vec<BinanceKline> = response.json().await?;
+	Ok(klines)
 }
-#[serde_as]
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FuturesPositionResponse {
-	pub client_order_id: Option<String>,
-	pub cum_qty: Option<String>, // weird field, included at random (json api things)
-	pub cum_quote: String,       // total filled quote asset
-	#[serde_as(as = "DisplayFromStr")]
-	pub executed_qty: f64, // total filled base asset
-	pub order_id: i64,
-	pub avg_price: Option<String>,
-	pub orig_qty: String,
-	pub price: String,
-	pub reduce_only: Value,
-	pub side: String,
-	pub position_side: Option<String>, // only sent when in hedge mode
-	pub status: OrderStatus,
-	pub stop_price: String,
-	pub close_position: Value,
-	pub symbol: String,
-	pub time_in_force: String,
-	pub r#type: String,
-	pub orig_type: String,
-	pub activate_price: Option<f64>, // only returned on TRAILING_STOP_MARKET order
-	pub price_rate: Option<f64>,     // only returned on TRAILING_STOP_MARKET order
-	pub update_time: i64,
-	pub working_type: Option<String>, // no clue what this is
-	pub price_protect: bool,
-	pub price_match: Option<String>, // huh
-	pub self_trade_prevention_mode: Option<String>,
-	pub good_till_date: Option<i64>,
+
+#[derive(Debug, Deserialize)]
+pub struct BinanceKline {
+	open_time: i64,
+	open: String,
+	high: String,
+	low: String,
+	close: String,
+	volume: String,
+	close_time: i64,
+	quote_asset_volume: String,
+	number_of_trades: i64,
+	taker_buy_base_asset_volume: String,
+	taker_buy_quote_asset_volume: String,
+	ignore: String,
 }
-impl FuturesPositionResponse {
-	pub fn get_url() -> Url {
-		let base_url = Market::BinanceFutures.get_base_url();
-		// the way this works - is we sumbir "New" and "Query" to the same endpoint. The action is then determined by the presence of the orderId parameter.
-		base_url.join("/fapi/v1/order").unwrap()
+
+/// Normally, the only cases where the return from this poll is going to be _reacted_ to, is when response.status == OrderStatus::Filled or an error is returned.
+// TODO!: translate to websockets
+#[instrument(skip(key, secret))]
+pub async fn poll_futures_order<S: AsRef<str>>(key: S, secret: S, binance_order: &BinanceOrder) -> Result<FuturesPositionResponse> {
+	let url = FuturesPositionResponse::get_url();
+
+	let mut params = HashMap::<&str, String>::new();
+	params.insert("symbol", binance_order.base_info.symbol.to_string());
+	params.insert("orderId", format!("{}", &binance_order.binance_id.unwrap()));
+	params.insert("recvWindow", "20000".to_owned()); // dbg currently they are having some issues with response speed
+	debug!("Polling order");
+
+	let r = signed_request(reqwest::Method::GET, url.as_str(), params, key, secret).await?;
+	let response: FuturesPositionResponse = deser_reqwest(r).await?;
+	Ok(response)
+}
+
+#[instrument(skip(key, secret, binance_exchange_arc))]
+pub async fn post_futures_order(key: String, secret: String, order: &Order<PositionOrderId>, binance_exchange_arc: Arc<RwLock<BinanceExchange>>) -> Result<BinanceOrder> {
+	debug!("Posting order");
+	let url = FuturesPositionResponse::get_url();
+
+	let mut binance_order = BinanceOrder::from_standard(order.clone(), binance_exchange_arc).await;
+	let mut params = binance_order.to_params();
+	params.insert("recvWindow", "60000".to_owned()); // dbg currently they/me are having some issues with response speed
+
+	let r = signed_request(reqwest::Method::POST, url.as_str(), params, key, secret).await?;
+	let response: FuturesPositionResponse = deser_reqwest(r).await?;
+	binance_order.binance_id = Some(response.order_id);
+	Ok(binance_order)
+}
+
+#[instrument(skip_all)]
+pub async fn get_futures_positions(key: String, secret: String) -> Result<HashMap<String, f64>> {
+	let url = FuturesAllPositionsResponse::get_url();
+
+	let r = signed_request(Method::GET, url.as_str(), HashMap::new(), key, secret).await?;
+	let positions: Vec<FuturesAllPositionsResponse> = deser_reqwest(r).await?;
+
+	let mut positions_map = HashMap::<String, f64>::new();
+	for position in positions {
+		let symbol = position.symbol.clone();
+		let qty = position.positionAmt.parse::<f64>()?;
+		positions_map.entry(symbol).and_modify(|e| *e += qty).or_insert(qty);
+	}
+	Ok(positions_map)
+}
+
+#[instrument]
+pub async fn close_orders(key: String, secret: String, orders: &[BinanceOrder]) -> Result<()> {
+	let base_url = Market::BinanceFutures.get_base_url();
+	let url = base_url.join("/fapi/v1/order").unwrap();
+
+	let handles = orders.iter().map(|o| {
+		let mut params = HashMap::<&str, String>::new();
+		params.insert("symbol", o.base_info.symbol.to_string());
+		params.insert("orderId", o.binance_id.unwrap().to_string());
+		params.insert("recvWindow", "60000".to_owned()); // dbg currently they are having some issues with response speed
+
+		signed_request(reqwest::Method::DELETE, url.as_str(), params, key.clone(), secret.clone())
+	});
+	for handle in handles {
+		let r = handle.await?;
+		let _: CancelOrdersResponse = deser_reqwest(r).await?;
+	}
+
+	Ok(())
+}
+
+#[instrument]
+pub async fn futures_price(asset: &str) -> Result<f64> {
+	debug!("requesting futures price"); //doesn't flush immediately, needs fixing to be useful
+	let symbol = crate::exchange_apis::Symbol {
+		base: asset.to_string(),
+		quote: "USDT".to_string(),
+		market: Market::BinanceFutures,
+	};
+	let base_url = Market::BinanceFutures.get_base_url();
+	let url = base_url.join("/fapi/v2/ticker/price")?;
+
+	let mut params = HashMap::<&str, String>::new();
+	params.insert("symbol", symbol.to_string());
+
+	let r = unsigned_request(Method::GET, url.as_str(), params).await?;
+	let price_response: PriceResponse = deser_reqwest(r).await?;
+
+	Ok(price_response.price)
+}
+
+#[instrument(skip(key, secret))]
+pub async fn get_balance(key: String, secret: String, market: Market) -> Result<f64> {
+	let mut params = HashMap::<&str, String>::new();
+	params.insert("recvWindow", "60000".to_owned());
+	match market {
+		Market::BinanceFutures => {
+			let base_url = market.get_base_url();
+			let url = base_url.join("fapi/v3/balance")?;
+
+			let r = signed_request(reqwest::Method::GET, url.as_str(), params, key, secret).await?;
+			let asset_balances: Vec<FuturesBalance> = deser_reqwest::<Vec<FuturesBalance>>(r).await?;
+
+			let mut total_balance = 0.0;
+			for asset in asset_balances {
+				total_balance += asset.balance.parse::<f64>()?;
+			}
+			Ok(total_balance)
+		}
+		Market::BinanceSpot => {
+			let base_url = market.get_base_url();
+			let url = base_url.join("/api/v3/account")?;
+
+			let r = signed_request(reqwest::Method::GET, url.as_str(), params, key, secret).await?;
+			let account_details: SpotAccountDetails = deser_reqwest(r).await?;
+			let asset_balances = account_details.balances;
+
+			let mut total_balance = 0.0;
+			for asset in asset_balances {
+				total_balance += asset.free.parse::<f64>()?;
+				total_balance += asset.locked.parse::<f64>()?;
+			}
+			Ok(total_balance)
+		}
+		Market::BinanceMargin => {
+			let base_url = market.get_base_url();
+			let url = base_url.join("/sapi/v1/margin/account")?;
+
+			let r = signed_request(reqwest::Method::GET, url.as_str(), params, key, secret).await?;
+			let account_details: MarginAccountDetails = deser_reqwest(r).await?;
+			let total_balance: f64 = account_details.TotalCollateralValueInUSDT.parse()?;
+
+			Ok(total_balance)
+		}
 	}
 }
 
-mod orders;
-use std::{
-	collections::HashMap,
-	sync::{Arc, RwLock},
-};
+#[instrument]
+pub async fn unsigned_request(http_method: reqwest::Method, endpoint_str: &str, params: HashMap<&str, String>) -> Result<reqwest::Response> {
+	debug!("requesting unsigned\nEndpoint: {endpoint_str}\nParams: {:?}", &params);
+	let client = reqwest::Client::new();
+	let _ = &params;
+	let r: reqwest::Response = client.request(http_method, endpoint_str).send().await?;
 
-use chrono::Utc;
-use color_eyre::eyre::{Result, bail};
-use hmac::{Hmac, Mac};
-use info::BinanceExchangeFutures;
-pub use orders::*;
-use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
-use reqwest::{
-	Method,
-	header::{CONTENT_TYPE, HeaderMap, HeaderValue},
-};
-use serde::{Deserialize, Serialize};
-use serde_json::{Number, Value};
-use serde_with::{DisplayFromStr, serde_as};
-use sha2::Sha256;
-use tokio::{
-	select,
-	sync::{mpsc, watch},
-	task::JoinSet,
-};
-use tracing::{debug, instrument, warn};
-use url::Url;
-use uuid::Uuid;
-use v_utils::{Percent, trades::Ohlc};
+	if r.status().is_success() {
+		return Ok(r);
+	}
 
-use super::{
-	hub::{ExchangeToHub, HubToExchange},
-	order_types::{ConceptualMarket, ConceptualOrderType, IdRequirements},
-};
-use crate::{
-	MAX_CONNECTION_FAILURES, PositionOrderId,
-	config::LiveSettings,
-	exchange_apis::{Market, order_types::Order},
-	utils::{deser_reqwest, report_connection_problem, unexpected_response_str},
-};
+	let error_html: String = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
+	Err(unexpected_response_str(&error_html))
+}
+
+#[instrument(skip(key, secret))]
+pub async fn signed_request<S: AsRef<str>>(http_method: reqwest::Method, endpoint_str: &str, mut params: HashMap<&'static str, String>, key: S, secret: S) -> Result<reqwest::Response> {
+	let mut headers = HeaderMap::new();
+	headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json;charset=utf-8"));
+	headers.insert("X-MBX-APIKEY", HeaderValue::from_str(key.as_ref())?);
+	let client = reqwest::Client::builder().default_headers(headers).build()?;
+
+	let max_retries = 10;
+	let mut retry_delay = std::time::Duration::from_secs(1);
+	let mut encountered_cloudfront_error = false;
+
+	for attempt in 0..max_retries {
+		let time_ms = Utc::now().timestamp_millis();
+		params.insert("timestamp", format!("{time_ms}"));
+
+		let query_string = serde_urlencoded::to_string(&params)?;
+
+		let mut mac = HmacSha256::new_from_slice(secret.as_ref().as_bytes())?;
+		mac.update(query_string.as_bytes());
+		let mac_bytes = mac.finalize().into_bytes();
+		let signature = hex::encode(mac_bytes);
+
+		let url = format!("{endpoint_str}?{query_string}&signature={signature}");
+		let r = client.request(http_method.clone(), &url).send().await?;
+
+		if r.status().is_success() {
+			return Ok(r);
+		}
+
+		let error_html: String = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
+		if error_html.contains("<TITLE>ERROR: The request could not be satisfied</TITLE>") && attempt <= max_retries {
+			if !encountered_cloudfront_error {
+				tracing::warn!("Encountered CloudFront error. Oh boy, here we go again.");
+				encountered_cloudfront_error = true;
+			} else {
+				tracing::debug!("CloudFront error encountered again. Attempting retry #{attempt} in {retry_delay:?}");
+			}
+			tokio::time::sleep(retry_delay).await;
+			retry_delay += std::time::Duration::from_secs(1);
+			continue;
+		}
+
+		return Err(unexpected_response_str(&error_html));
+	}
+
+	bail!("Max retries reached. Request failed.")
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct BinanceExchange {
+	pub binance_futures_info: BinanceExchangeFutures,
+}
 
 #[serde_as]
 #[derive(Clone, Debug, Default, Deserialize, Serialize, derive_new::new)]

@@ -49,8 +49,8 @@ impl Book {
 		for (exch, instruments) in &exchanges {
 			let name = exch.name();
 			for instrument in instruments {
-				let pair = asset.usd_pair(instrument == Instrument::PerpInverse);
-				match exch.ws_book(vec![pair], instrument) {
+				let pair = asset.usd_pair(*instrument == Instrument::PerpInverse);
+				match exch.ws_book(vec![pair], *instrument) {
 					Ok(stream) => {
 						tracing::info!(exchange = %name, asset = %asset, %instrument, "subscribed to ws_book");
 						streams.push((name.clone(), stream));

@@ -21,6 +21,7 @@ nautilus-model = { path = "../libs/nautilus_trader/crates/model" } #dbg
 
 derive-new = "0.7"
 futures-util = "0.3.31"
+parking_lot = "0.12"
 tokio = { version = "^1.49.0", features = ["full", "signal"] }
 
 clap.workspace = true

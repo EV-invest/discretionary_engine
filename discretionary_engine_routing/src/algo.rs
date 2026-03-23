@@ -1,7 +1,6 @@
 use std::{
 	collections::HashMap,
 	hash::{Hash, Hasher},
-	sync::Arc,
 };
 
 use miette::Result;
@@ -9,7 +8,7 @@ use uuid::Uuid;
 use v_exchanges::{ExchangeName, ExchangeOrder, Symbol, orders::LimitOrder};
 use v_utils::trades::Side;
 
-use crate::data::Book;
+use crate::data::BookHandle;
 
 #[derive(clap::Args, Debug, serde::Deserialize, serde::Serialize)]
 pub struct ConceptualLimitChangeable {
@@ -33,7 +32,7 @@ pub struct ConceptualLimitArgs {
 	pub changeable: ConceptualLimitChangeable,
 }
 
-#[derive(Clone, Debug, derive_new::new)]
+#[derive(Debug, derive_new::new)]
 pub struct ConceptualLimit {
 	pub id: Uuid,
 
@@ -44,7 +43,7 @@ pub struct ConceptualLimit {
 
 	/// total per-exchange qty fill value
 	__filled: HashMap<ExchangeName, f64>,
-	__book: Arc<Book>,
+	__book: BookHandle,
 }
 impl ConceptualLimit {
 	pub fn adjust(&mut self, adj: ConceptualLimitChangeable) -> std::result::Result<(), crate::InvalidRoutingError> {
@@ -70,7 +69,7 @@ impl ConceptualLimit {
 	///
 	/// no generics or "semantic" stuff at this level, - we produce exact limit orders for exact exchange with exact configuration
 	pub async fn next(&self) -> Result<Vec<ExchangeOrder<LimitOrder>>, Error> {
-		let book = self.__book.tick().await;
+		let book = self.__book.snapshot();
 
 		//HACK: the dumbest Chase Limit imaginable
 		//TODO!!!: make proper
@@ -96,6 +95,24 @@ impl ConceptualLimit {
 		};
 		Ok(vec![exchg])
 	}
+
+	pub(crate) fn from_args(v: ConceptualLimitArgs, book: BookHandle) -> Self {
+		let (size, side) = match v.changeable.qty {
+			p if p > 0. => (p, Side::Buy),
+			p if p < 0. => (-p, Side::Sell),
+			_ => unreachable!("should've checked before here, - where we still can report to user"),
+		};
+		ConceptualLimit {
+			side,
+			limit: v.changeable.limit,
+			size_q: size,
+			symbol: v.symbol,
+
+			id: Uuid::now_v7(),
+			__filled: HashMap::new(),
+			__book: book,
+		}
+	}
 }
 
 impl PartialEq for ConceptualLimit {
@@ -116,24 +133,4 @@ impl Hash for ConceptualLimit {
 /// Error during the conversion of intent into exact orders
 pub enum Error {
 	Other(miette::Report),
-}
-
-impl From<ConceptualLimitArgs> for ConceptualLimit {
-	fn from(v: ConceptualLimitArgs) -> Self {
-		let (size, side) = match v.changeable.qty {
-			p if p > 0. => (p, Side::Buy),
-			p if p < 0. => (-p, Side::Sell),
-			_ => unreachable!("should've checked before here, - where we still can report to user"),
-		};
-		ConceptualLimit {
-			side,
-			limit: v.changeable.limit,
-			size_q: size,
-			symbol: v.symbol,
-
-			id: Uuid::now_v7(),
-			__filled: HashMap::new(),
-			__book: Arc::default(),
-		}
-	}
 }

@@ -177,9 +177,49 @@ async fn main() -> Result<()> {
 	exit_on_error(match cli.command {
 		Commands::Run(args) => command_new(args, live_settings.clone(), tx, exchanges_arc).await,
 		Commands::Service => {
-			let redis_port = live_settings.config()?.redis_port;
+			let config = live_settings.config()?;
+			let redis_port = config.redis_port;
+
+			de_core::config::init_exchanges(config.exchanges.clone());
 			let mut routing_hub = de_routing::RoutingHub::new();
-			routing_hub.run(redis_port).await
+
+			let consumer_name = format!("routing-{}", std::process::id());
+			let mut conn = de_core::redis_bus::connect(redis_port).await?;
+			let mut subscriber = de_core::redis_bus::StreamSubscriber::new(&mut conn, de_routing::STREAM_KEY, de_routing::CONSUMER_GROUP, consumer_name).await?;
+
+			info!("Service running, listening on Redis port {redis_port}...");
+
+			loop {
+				tokio::select! {
+					(id, result) = routing_hub.next() => {
+						match &result {
+							Ok(orders) => {
+								for order in orders {
+									info!(%id, ?order, "ConceptualLimit produced order");
+								}
+							}
+							Err(e) => {
+								tracing::error!(%id, "ConceptualLimit::next() failed: {e}");
+							}
+						}
+					}
+
+					result = subscriber.next::<de_routing::Commands>() => {
+						match result {
+							Ok(Some(cmd)) => routing_hub.handle_command(cmd),
+							Ok(None) => {}
+							Err(e) => tracing::error!("Error reading routing command: {e}"),
+						}
+					}
+
+					_ = tokio::signal::ctrl_c() => {
+						info!("Service shutting down...");
+						break;
+					}
+				}
+			}
+
+			Ok(())
 		}
 		Commands::AdjustPos(adjust_pos_args) => adjust_pos::main(adjust_pos_args, live_settings.clone(), cli.testnet).await,
 		Commands::Nuke(nuke_args) => nuke::main(nuke_args, live_settings.clone(), cli.testnet).await,

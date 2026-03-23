@@ -5,7 +5,7 @@ extern crate clap;
 pub const EXE_NAME: &str = "discretionary_engine";
 
 use color_eyre::eyre::{Result, eyre};
-pub use de_core::config::ExchangeConfig;
+pub use de_core::config::{ConfiguredExchanges, ExchangeConfig};
 pub use de_risk::config::*;
 pub use de_strategy::config::*;
 use v_exchanges::ExchangeName;
@@ -16,7 +16,7 @@ use v_utils::macros as v_macros;
 pub struct AppConfig {
 	pub positions_dir: PathBuf,
 	#[serde(default)]
-	pub exchanges: HashMap<String, ExchangeConfig>,
+	pub exchanges: ConfiguredExchanges,
 	#[serde(default = "__default_comparison_offset_h")]
 	pub comparison_offset_h: u32,
 	#[serde(default = "__default_redis_port")]

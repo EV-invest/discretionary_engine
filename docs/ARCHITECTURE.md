@@ -1,7 +1,20 @@
 <!--TODO: add links to all Special terms I'm using here-->
 
-TODO: update the mermaid
+# Invariants
+<!--TODO: check if this section can be converted to `tracey` spec-->
+## usd-based
+all `Asset`s are pegged against USD only.
+Lose about ~1% cases; worth it for the simplification
+
+## exchange config consistency
+all implemented (Instrument x Exchange) pairs always come with both execution and data.
+This means we can have a single source of truth conf, - whatever is in the top level config
+
+## crash-only
+https://nautilustrader.io/docs/nightly/concepts/architecture/#crash-only-design
+
 # Architecture
+TODO: update the mermaid
 ```mermaid
 flowchart TD
   Hub["Hub"]
@@ -148,10 +161,23 @@ TODO: .
 - directly takes care of executing and retrying for orders.
   If an order is not being passed, - it should determine if it's the fault of the exchange, or if something more general, and then handle it.
 
+
 ### Communication
 TODO: update to current arch \
 
 when sending or receiving orders every actor attaches a `last_fill_key`. It must match the last key attached to the latest report to this actor by however handles execution of its requests. It's used to ensure that all client's requests are based on the up-to-date knowledge of the relevant state. By internal convention, if the client is yet to receive any reports, it sends `Uuid::default()`.
+
+### RoutingHub
+TODO
+
+### Updates
+[RoutingHub](#routinghub) persists books for all the ongoing ConceptualLimits. Each Book takes care of updating state itself. They are spawned for the `Exchange x Instrument`s from associated `AggConfig`
+
+every asset gets its own thread. Within it, we:
++ await computation for each `ConceptualLimit` on the asset
++ await a `tick()` on the associated book; -> repeat
+
+async drop of conceptual limits that are finished is handled by `next()` too. Just drop if only handle's ref remains. //TODO: figure out correct way to get this behavior
 
 ## `_data`
 loads data. Output boundary is not pegged to any potential input constraints.

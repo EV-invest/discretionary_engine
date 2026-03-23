@@ -1,18 +1,26 @@
 pub mod algo;
 pub mod data;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, pin::Pin};
 
 use color_eyre::eyre::Result;
 use de_core::component::{Component, ComponentState, ComponentTrigger};
+use futures_util::{StreamExt as _, stream::FuturesUnordered};
 use tracing::info;
 use uuid::Uuid;
+use v_exchanges::{ExchangeOrder, orders::LimitOrder};
+use v_utils::trades::Asset;
 
-use crate::algo::{ConceptualLimit, ConceptualLimitChangeable};
+use crate::{
+	algo::{ConceptualLimit, ConceptualLimitChangeable},
+	data::Book,
+};
 
 pub const STREAM_KEY: &str = "discretionary_engine:routing:commands";
 pub const CONSUMER_GROUP: &str = "routing_consumers";
 
+type LimitResult = (Uuid, ConceptualLimit, std::result::Result<Vec<ExchangeOrder<LimitOrder>>, algo::Error>);
+type LimitFut = Pin<Box<dyn std::future::Future<Output = LimitResult> + Send>>;
 #[derive(Debug, serde::Deserialize, serde::Serialize, clap::Subcommand)]
 pub enum Commands {
 	New(algo::ConceptualLimitArgs),
@@ -38,96 +46,85 @@ pub async fn publish(cmd: Commands, redis_port: u16) -> Result<()> {
 	Ok(())
 }
 
-#[derive(Debug)]
 pub struct RoutingHub {
-	conceptual_limits: HashMap<Uuid, ConceptualLimit>,
+	books: HashMap<Asset, Book>,
+	limit_futs: FuturesUnordered<LimitFut>,
+	deleted: std::collections::HashSet<Uuid>,
 	state: ComponentState,
 }
 impl RoutingHub {
 	pub fn new() -> Self {
 		let mut hub = Self {
-			conceptual_limits: HashMap::new(),
+			books: HashMap::new(),
+			limit_futs: FuturesUnordered::new(),
+			deleted: std::collections::HashSet::new(),
 			state: ComponentState::default(),
 		};
 		hub.transition_state(ComponentTrigger::Initialize);
 		hub
 	}
 
-	/// Main runtime loop. Subscribes to Redis, processes commands, polls active limits.
-	pub async fn run(&mut self, redis_port: u16) -> Result<()> {
-		self.start();
-
-		let consumer_name = format!("routing-{}", std::process::id());
-		let mut conn = de_core::redis_bus::connect(redis_port).await?;
-		let mut subscriber = de_core::redis_bus::StreamSubscriber::new(&mut conn, STREAM_KEY, CONSUMER_GROUP, consumer_name).await?;
-
-		info!("RoutingHub running, listening for commands on Redis port {redis_port}...");
-
-		loop {
-			tokio::select! {
-				result = subscriber.next::<Commands>() => {
-					match result {
-						Ok(Some(cmd)) => {
-							self.handle_command(cmd);
-						}
-						Ok(None) => {
-							// timeout, poll active limits
-						}
-						Err(e) => {
-							tracing::error!("Error reading routing command: {e}");
-						}
-					}
-				}
-				_ = tokio::signal::ctrl_c() => {
-					info!("RoutingHub shutting down...");
-					break;
-				}
-			}
-
-			self.poll_limits().await;
-		}
-
-		self.stop();
-		Ok(())
-	}
-
-	fn handle_command(&mut self, cmd: Commands) {
+	pub fn handle_command(&mut self, cmd: Commands) {
 		match cmd {
 			Commands::New(args) => {
-				let limit = ConceptualLimit::from(args);
-				info!(id = %limit.id, "New ConceptualLimit added");
-				self.conceptual_limits.insert(limit.id, limit);
+				let asset = *args.symbol.pair.base();
+
+				if !self.books.contains_key(&asset) {
+					self.spawn_book(asset);
+				}
+
+				let book_handle = self.books.get(&asset).expect("just inserted").handle();
+				let limit = ConceptualLimit::from_args(args, book_handle);
+				let id = limit.id;
+				info!(%id, "New ConceptualLimit added");
+				self.limit_futs.push(Self::make_limit_fut(id, limit));
 			}
-			Commands::Adj { id, args } =>
-				if let Some(existing) = self.conceptual_limits.get_mut(&id) {
-					match existing.adjust(args) {
-						Ok(()) => info!(%id, "ConceptualLimit adjusted"),
-						Err(e) => tracing::error!(%id, "Adj rejected: {e}"),
-					}
-				} else {
-					tracing::warn!(%id, "Adj: ConceptualLimit not found");
-				},
-			Commands::Del { id } =>
-				if self.conceptual_limits.remove(&id).is_some() {
-					info!(%id, "ConceptualLimit removed");
-				} else {
-					tracing::warn!(%id, "Del: ConceptualLimit not found");
-				},
+			Commands::Adj { id, args } => {
+				//TODO: apply adjustment immediately (requires pulling limit out of FuturesUnordered)
+				tracing::warn!(%id, ?args, "Adj received — will apply on next cycle (not yet implemented for in-flight limits)");
+			}
+			Commands::Del { id } => {
+				self.deleted.insert(id);
+				info!(%id, "ConceptualLimit marked for deletion");
+			}
 		}
 	}
 
-	async fn poll_limits(&self) {
-		for (id, limit) in &self.conceptual_limits {
-			match limit.next().await {
-				Ok(orders) =>
-					for order in &orders {
-						info!(%id, ?order, "ConceptualLimit produced order");
-					},
-				Err(e) => {
-					tracing::error!(%id, "ConceptualLimit::next() failed: {e}");
-				}
+	/// Blocks until any ConceptualLimit produces orders. Returns the id and orders.
+	///
+	/// Books take care of themselves (internal tokio::spawn'd tasks, killed on drop).
+	/// Limits are polled via FuturesUnordered (btc_line pattern): each limit is moved
+	/// into a future that blocks on `book.tick()` then produces orders. On completion
+	/// the limit is returned and re-scheduled.
+	pub async fn next(&mut self) -> (Uuid, std::result::Result<Vec<ExchangeOrder<LimitOrder>>, algo::Error>) {
+		loop {
+			let (id, limit, result) = self.limit_futs.next().await.expect("RoutingHub::next() called with no active limits");
+			if self.deleted.remove(&id) {
+				continue;
 			}
+			// Re-schedule
+			self.limit_futs.push(Self::make_limit_fut(id, limit));
+			return (id, result);
 		}
+	}
+
+	fn spawn_book(&mut self, asset: Asset) {
+		info!(asset = %asset, "Spawning Book");
+		let book = Book::new(asset);
+		self.books.insert(asset, book);
+	}
+
+	fn make_limit_fut(id: Uuid, limit: ConceptualLimit) -> LimitFut {
+		Box::pin(async move {
+			let result = limit.next().await;
+			(id, limit, result)
+		})
+	}
+}
+
+impl std::fmt::Debug for RoutingHub {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("RoutingHub").field("n_books", &self.books.len()).field("state", &self.state).finish()
 	}
 }
 

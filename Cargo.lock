@@ -1032,6 +1032,7 @@ dependencies = [
  "serde_json",
  "strum 0.28.0",
  "tokio",
+ "v_exchanges",
  "v_utils",
 ]
 
@@ -1081,6 +1082,7 @@ dependencies = [
  "miette",
  "nautilus-bybit",
  "nautilus-model",
+ "parking_lot",
  "serde",
  "thiserror 2.0.18",
  "tokio",

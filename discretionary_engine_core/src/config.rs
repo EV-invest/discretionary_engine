@@ -4,6 +4,7 @@ use secrecy::{ExposeSecret as _, SecretString};
 use v_exchanges::{Exchange, ExchangeName, Instrument};
 use v_utils::macros as v_macros;
 
+pub type ConfiguredExchanges = HashMap<String, ExchangeConfig>;
 #[derive(Clone, Debug, Default, v_macros::MyConfigPrimitives)]
 pub struct ExchangeConfig {
 	pub api_pubkey: String,
@@ -13,16 +14,11 @@ pub struct ExchangeConfig {
 	#[serde(default)]
 	pub instruments: Vec<Instrument>,
 }
-pub type ConfiguredExchanges = HashMap<String, ExchangeConfig>;
-
-/// r[global.exchanges.static]: initialized once at startup, never changes. Restart to update.
-static CONFIGURED_EXCHANGES: OnceLock<ConfiguredExchanges> = OnceLock::new();
 
 /// Initialize the global exchange config. Panics if called twice.
 pub fn init_exchanges(exchanges: ConfiguredExchanges) {
 	CONFIGURED_EXCHANGES.set(exchanges).expect("exchanges already initialized");
 }
-
 /// Build authenticated exchange clients from the global config.
 pub fn build_exchanges() -> Vec<(Box<dyn Exchange>, Vec<Instrument>)> {
 	let config = CONFIGURED_EXCHANGES.get().expect("exchanges not initialized");
@@ -36,3 +32,5 @@ pub fn build_exchanges() -> Vec<(Box<dyn Exchange>, Vec<Instrument>)> {
 		})
 		.collect()
 }
+/// r[global.exchanges.static]: initialized once at startup, never changes. Restart to update.
+static CONFIGURED_EXCHANGES: OnceLock<ConfiguredExchanges> = OnceLock::new();

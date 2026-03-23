@@ -48,7 +48,7 @@ impl Book {
 		let mut streams: Vec<(ExchangeName, Box<dyn ExchangeStream<Item = BookUpdate>>)> = Vec::new();
 		for (exch, instruments) in &exchanges {
 			let name = exch.name();
-			for &instrument in instruments {
+			for instrument in instruments {
 				let pair = asset.usd_pair(instrument == Instrument::PerpInverse);
 				match exch.ws_book(vec![pair], instrument) {
 					Ok(stream) => {
@@ -71,6 +71,7 @@ impl Book {
 
 	/// Get a cloneable handle for ConceptualLimits to hold.
 	pub fn handle(&self) -> BookHandle {
+		//TODO!!!: get rid of this clone.
 		self.handle.clone()
 	}
 
@@ -119,8 +120,7 @@ impl Book {
 				}
 			}
 		}
-
-		tracing::warn!(asset = %asset, "Book has no streams left, task exiting");
+		unreachable!("Book has no streams left, - shouldn't happen during normal execution. Something's corrupted."); //r[invariant.crash-only]
 	}
 
 	/// Merge all per-exchange books into a single BookShape and write to shared state.

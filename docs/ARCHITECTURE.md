@@ -11,6 +11,9 @@ all implemented (Instrument x Exchange) pairs always come with both execution an
 This means we can have a single source of truth conf, - whatever is in the top level config
 
 ## crash-only
+
+r[invariant.crash-only]
+
 https://nautilustrader.io/docs/nightly/concepts/architecture/#crash-only-design
 
 # Architecture

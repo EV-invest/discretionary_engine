@@ -4,10 +4,10 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
     pre-commit-hooks.url = "github:cachix/git-hooks.nix";
-    v-flakes.url = "github:valeratrades/v_flakes?ref=v1.4";
+    v_flakes.url = "github:valeratrades/v_flakes?ref=v1.4";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, pre-commit-hooks, v-flakes, ... }:
+  outputs = { self, nixpkgs, rust-overlay, flake-utils, pre-commit-hooks, v_flakes, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = builtins.trace "flake.nix sourced" [ (import rust-overlay) ];
@@ -17,12 +17,12 @@
         rust = pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
           extensions = [ "rust-src" "rust-analyzer" "rust-docs" "rustc-codegen-cranelift-preview" ];
         });
-        pre-commit-check = pre-commit-hooks.lib.${system}.run (v-flakes.files.preCommit { inherit pkgs; });
+        pre-commit-check = pre-commit-hooks.lib.${system}.run (v_flakes.files.preCommit { inherit pkgs; });
         manifest = (pkgs.lib.importTOML ./discretionary_engine/Cargo.toml).package;
         pname = manifest.name;
         stdenv = pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv;
 
-        rs = v-flakes.rs {
+        rs = v_flakes.rs {
           inherit pkgs rust;
           cranelift = false; # cranelift disabled due to aws-lc-rs incompatibility
           tracey = false; # feels raw. And kinda pointless, as I don't see shit enforced. Might not understand it well enough, but starting to think it superflous
@@ -39,7 +39,7 @@
             };
           };
         };
-        github = v-flakes.github {
+        github = v_flakes.github {
           inherit pkgs pname rs;
           enable = true;
           lastSupportedVersion = "nightly-2025-10-12";
@@ -52,7 +52,7 @@
             { name = "integrations"; color = "20603D"; description = "all things related to how we access the underlying "; }
           ];
         };
-        readme = v-flakes.readme-fw { inherit pkgs pname; defaults = true; lastSupportedVersion = "nightly-1.92"; rootDir = ./.; badges = [ "msrv" "crates_io" "docs_rs" "loc" "ci" ]; };
+        readme = v_flakes.readme-fw { inherit pkgs pname; defaults = true; lastSupportedVersion = "nightly-1.92"; rootDir = ./.; badges = [ "msrv" "crates_io" "docs_rs" "loc" "ci" ]; };
 
       in
       {
@@ -87,7 +87,7 @@
             rs.shellHook +
             readme.shellHook +
             ''
-              cp -f ${(v-flakes.files.treefmt) {inherit pkgs;}} ./.treefmt.toml
+              cp -f ${(v_flakes.files.treefmt) {inherit pkgs;}} ./.treefmt.toml
             '';
 
           env = {

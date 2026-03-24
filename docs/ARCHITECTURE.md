@@ -153,6 +153,7 @@ handles 3 parts:
 TODO: .
 
 ### Invariants
+TODO: transfer over into ./spec/routing.md
 - input's thin waist is exclusively through `ConceptualOrder`.
 
 - outputs **exact orders**, associated with exact exchange
@@ -163,6 +164,8 @@ TODO: .
 
 - directly takes care of executing and retrying for orders.
   If an order is not being passed, - it should determine if it's the fault of the exchange, or if something more general, and then handle it.
+
+- `ConceptualLimit`s step in rythm with data arrival for the corresponding asset
 
 
 ### Communication

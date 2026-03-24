@@ -53,6 +53,7 @@ pub struct RoutingHub {
 	state: ComponentState,
 }
 impl RoutingHub {
+	#[deprecated(note = "think we can get rid of `new` entirely and switch to derive Default")]
 	pub fn new() -> Self {
 		let mut hub = Self {
 			books: HashMap::new(),
@@ -119,6 +120,12 @@ impl RoutingHub {
 			let result = limit.next().await;
 			(id, limit, result)
 		})
+	}
+}
+
+impl Default for RoutingHub {
+	fn default() -> Self {
+		Self::new()
 	}
 }
 

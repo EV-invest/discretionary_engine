@@ -12,10 +12,25 @@ pub async fn connect(port: u16) -> Result<MultiplexedConnection> {
 	Ok(conn)
 }
 
-pub async fn publish<T: Serialize>(conn: &mut MultiplexedConnection, stream_key: &str, command: &T) -> Result<String> {
+pub async fn publish<T: Serialize>(conn: &mut MultiplexedConnection, stream_key: &str, consumer_group: &str, command: &T) -> Result<String> {
+	require_active_consumer(conn, stream_key, consumer_group).await?;
 	let payload = serde_json::to_string(command).wrap_err("Failed to serialize command")?;
 	let id: String = conn.xadd(stream_key, "*", &[("cmd", &payload)]).await.wrap_err("Failed to publish to Redis stream")?;
 	Ok(id)
+}
+
+async fn require_active_consumer(conn: &mut MultiplexedConnection, stream_key: &str, consumer_group: &str) -> Result<()> {
+	let result: redis::RedisResult<Vec<Vec<redis::Value>>> = redis::cmd("XINFO").arg("CONSUMERS").arg(stream_key).arg(consumer_group).query_async(conn).await;
+	match result {
+		Ok(consumers) if !consumers.is_empty() => Ok(()),
+		_ => {
+			let exe = std::env::current_exe()
+				.ok()
+				.and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+				.unwrap_or_else(|| env!("CARGO_PKG_NAME").to_owned());
+			color_eyre::eyre::bail!("Service is not running. Start it with: `{exe} daemon`")
+		}
+	}
 }
 
 pub struct StreamSubscriber {

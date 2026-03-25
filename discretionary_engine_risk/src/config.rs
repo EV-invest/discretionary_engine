@@ -29,10 +29,8 @@ pub struct SizeConfig {
 }
 
 #[derive(Clone, Debug, v_macros::MyConfigPrimitives, v_macros::SettingsNested, smart_default::SmartDefault)]
-#[serde(default)]
 pub struct RiskLayersConfig {
 	#[default(true)]
-	#[serde(default)]
 	pub stop_loss_proximity: bool,
 	#[serde(default)]
 	pub from_phone: bool,

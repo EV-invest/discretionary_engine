@@ -11,7 +11,7 @@ pub const CONSUMER_GROUP: &str = "strategy_consumers";
 /// Publish a command string to the strategy Redis stream.
 pub async fn publish_command(conn: &mut redis::aio::MultiplexedConnection, command: &str) -> color_eyre::eyre::Result<String> {
 	// Strategy still uses raw strings; wrap in a String for serde compat
-	de_core::redis_bus::publish(conn, STREAM_KEY, &command).await
+	de_core::redis_bus::publish(conn, STREAM_KEY, CONSUMER_GROUP, &command).await
 }
 
 /// Subscribe to commands from the strategy Redis stream.

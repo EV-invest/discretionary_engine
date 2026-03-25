@@ -57,7 +57,7 @@ enum Commands {
 	/// Start the main program
 	Run(PositionArgs),
 	/// Long-running service: initializes exchanges, starts RoutingHub, listens for commands
-	Service,
+	Daemon,
 	/// Adjust an existing position size smartly
 	AdjustPos(adjust_pos::AdjustPosArgs),
 	/// Close position completely
@@ -176,7 +176,7 @@ async fn main() -> Result<()> {
 
 	exit_on_error(match cli.command {
 		Commands::Run(args) => command_new(args, live_settings.clone(), tx, exchanges_arc).await,
-		Commands::Service => {
+		Commands::Daemon => {
 			let config = live_settings.config()?;
 			let redis_port = config.redis_port;
 
@@ -190,6 +190,8 @@ async fn main() -> Result<()> {
 			info!("Service running, listening on Redis port {redis_port}...");
 
 			loop {
+				//dbg: not the place for it, - we shouldn't
+				//Q: a
 				tokio::select! {
 					(asset, results) = routing_hub.next() => {
 						for (id, result) in results {

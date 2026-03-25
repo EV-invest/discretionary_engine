@@ -44,7 +44,7 @@ pub enum Commands {
 /// Client-side: parse CLI command, serialize, publish to Redis, exit.
 pub async fn publish(cmd: Commands, redis_port: u16) -> color_eyre::eyre::Result<()> {
 	let mut conn = de_core::redis_bus::connect(redis_port).await?;
-	let id = de_core::redis_bus::publish(&mut conn, STREAM_KEY, &cmd).await?;
+	let id = de_core::redis_bus::publish(&mut conn, STREAM_KEY, CONSUMER_GROUP, &cmd).await?;
 	info!("Routing command published with ID: {id}");
 	Ok(())
 }
@@ -77,7 +77,11 @@ impl RoutingHub {
 	/// Returns the asset and all limit results for that tick.
 	pub async fn next(&mut self) -> (Asset, Vec<LimitStepResult>) {
 		self.apply_commands();
-		self.streams.next().await.expect("RoutingHub::next() called with no active limits")
+		if self.streams.is_empty() {
+			std::future::pending::<()>().await;
+			unreachable!()
+		}
+		self.streams.next().await.expect("StreamMap yielded None despite non-empty map")
 	}
 
 	fn apply_commands(&mut self) {

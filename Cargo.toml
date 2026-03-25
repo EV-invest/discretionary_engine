@@ -18,11 +18,11 @@ undocumented_unsafe_blocks = "warn"
 tabs_in_doc_comments = "allow"
 
 [workspace.dependencies]
-clap = { version = "^4.5.60", features = ["derive", "env"] }
+clap = { version = "^4.6.0", features = ["derive", "env"] }
 color-eyre = "^0.6.5"
 derive_more = { version = "^2.1.1", features = ["from_str", "display", "from", "deref", "deref_mut"] }
 insta = { version = "1.46.3", features = ["json"] }
-jiff = "^0.2.22"
+jiff = "^0.2.23"
 miette = { version = "7.6.0", features = ["fancy", "serde", "syntect-highlighter"] }
 secrecy = { version = "0.10.3", features = ["serde"] }
 serde = { version = "^1.0.228", features = ["derive"] }
@@ -31,16 +31,16 @@ snapshot_fonts = "1.2.0"
 strum = { version = "0.28", features = ["derive"] }
 thiserror = { version = "^2.0.18" }
 tracing = { version = "^0.1.44", features = ["log", "std", "async-await"] }
-uuid = { version = "^1.21.0", features = ["serde", "v4", "v7", "v8"] }
+uuid = { version = "^1.22.0", features = ["serde", "v4", "v7", "v8"] }
 v_exchanges = { version = "^0.17.0", features = ["full"] }
-v_utils = { version = "2.15.29", features = ["full"] }
+v_utils = { version = "2.15.31", features = ["full"] }
 
 #dbg: \
 [patch.crates-io]
 v_exchanges = { path = "../v_exchanges/v_exchanges" }
 v_exchanges_adapters = { path = "../v_exchanges/v_exchanges_adapters" }
 v_exchanges_api_generics = { path = "../v_exchanges/v_exchanges_api_generics" }
-v_utils = { path = "../v_utils/v_utils", features = ["cli", "io", "xdg", "macros"] }
+v_utils = { path = "../v_utils/v_utils" }
 v_utils_macros = { path = "../v_utils/v_utils_macros" }
 
 [profile.dev]

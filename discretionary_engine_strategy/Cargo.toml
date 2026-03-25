@@ -28,8 +28,6 @@ tracing-subscriber = { version = "^0.3.22", features = ["fmt", "env-filter"] }
 
 clap.workspace = true
 color-eyre.workspace = true
-derive_more.workspace = true
-miette.workspace = true
 serde.workspace = true
 tracing.workspace = true
 v_exchanges.workspace = true

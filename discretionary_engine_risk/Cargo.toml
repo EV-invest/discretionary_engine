@@ -26,9 +26,7 @@ clap.workspace = true
 color-eyre.workspace = true
 jiff.workspace = true
 miette.workspace = true
-serde.workspace = true
 smart-default.workspace = true
-snapshot_fonts.workspace = true
 strum.workspace = true
 tracing.workspace = true
 v_exchanges = { workspace = true, features = ["binance", "bybit", "kucoin", "mexc"] }
@@ -36,6 +34,7 @@ v_utils = { workspace = true, features = ["trades"] }
 
 [dev-dependencies]
 insta.workspace = true
+snapshot_fonts.workspace = true
 
 [lints]
 workspace = true

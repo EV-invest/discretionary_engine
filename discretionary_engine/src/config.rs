@@ -11,15 +11,15 @@ pub use de_strategy::config::*;
 use v_exchanges::ExchangeName;
 use v_utils::macros as v_macros;
 
-#[derive(Clone, Debug, v_macros::LiveSettings, v_macros::MyConfigPrimitives, v_macros::Settings)]
+#[derive(Clone, Debug, smart_default::SmartDefault, v_macros::LiveSettings, v_macros::MyConfigPrimitives, v_macros::Settings)]
 #[settings(use_env = true)]
 pub struct AppConfig {
 	pub positions_dir: PathBuf,
 	#[serde(default)]
 	pub exchanges: ConfiguredExchanges,
-	#[serde(default = "__default_comparison_offset_h")]
+	#[default(24)]
 	pub comparison_offset_h: u32,
-	#[serde(default = "__default_redis_port")]
+	#[default(6379)]
 	pub redis_port: u16,
 	#[settings(flatten)]
 	pub strategy: Option<StrategyConfig>,
@@ -30,12 +30,4 @@ impl AppConfig {
 	pub fn get_exchange(&self, exchange: ExchangeName) -> Result<&ExchangeConfig> {
 		self.exchanges.get(&exchange.to_string()).ok_or_else(|| eyre!("{exchange} exchange config not found"))
 	}
-}
-
-fn __default_comparison_offset_h() -> u32 {
-	24
-}
-
-fn __default_redis_port() -> u16 {
-	6379
 }

@@ -19,20 +19,6 @@ pub async fn publish<T: Serialize>(conn: &mut MultiplexedConnection, stream_key:
 	Ok(id)
 }
 
-async fn require_active_consumer(conn: &mut MultiplexedConnection, stream_key: &str, consumer_group: &str) -> Result<()> {
-	let result: redis::RedisResult<Vec<Vec<redis::Value>>> = redis::cmd("XINFO").arg("CONSUMERS").arg(stream_key).arg(consumer_group).query_async(conn).await;
-	match result {
-		Ok(consumers) if !consumers.is_empty() => Ok(()),
-		_ => {
-			let exe = std::env::current_exe()
-				.ok()
-				.and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
-				.unwrap_or_else(|| env!("CARGO_PKG_NAME").to_owned());
-			color_eyre::eyre::bail!("Service is not running. Start it with: `{exe} daemon`")
-		}
-	}
-}
-
 pub struct StreamSubscriber {
 	conn: MultiplexedConnection,
 	consumer_name: String,
@@ -78,6 +64,20 @@ impl StreamSubscriber {
 				} else {
 					Err(e).wrap_err("Failed to read from Redis stream")
 				},
+		}
+	}
+}
+
+async fn require_active_consumer(conn: &mut MultiplexedConnection, stream_key: &str, consumer_group: &str) -> Result<()> {
+	let result: redis::RedisResult<Vec<Vec<redis::Value>>> = redis::cmd("XINFO").arg("CONSUMERS").arg(stream_key).arg(consumer_group).query_async(conn).await;
+	match result {
+		Ok(consumers) if !consumers.is_empty() => Ok(()),
+		_ => {
+			let exe = std::env::current_exe()
+				.ok()
+				.and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+				.unwrap_or_else(|| env!("CARGO_PKG_NAME").to_owned());
+			color_eyre::eyre::bail!("Service is not running. Start it with: `{exe} daemon`")
 		}
 	}
 }

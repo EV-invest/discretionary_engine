@@ -25,7 +25,6 @@ nautilus-model = { path = "../libs/nautilus_trader/crates/model" }
 chrono = "^0.4.44"
 clap_complete = "4.5.66"
 config = "0.15.19"
-console-subscriber = "0.5.0"
 derive-new = "0.7.0"
 dirs = "6.0"
 eyre = "0.6.12"
@@ -43,10 +42,6 @@ serde_with = "^3.17.0"
 sha2 = "^0.10.9"
 tokio = { version = "^1.50.0", features = ["full", "tracing"] }
 tokio-tungstenite = { version = "0.28.0", features = ["native-tls"] }
-tracing-bunyan-formatter = "0.3.10"
-tracing-error = "0.2.1"
-tracing-log = "0.2.0"
-tracing-subscriber = { version = "^0.3.22", features = ["fmt", "json", "registry", "env-filter"] }
 url = "^2.5.8"
 ustr = "1.1.0"
 uuid = { version = "^1.21.0", features = ["serde", "v4", "v7", "v8"] }

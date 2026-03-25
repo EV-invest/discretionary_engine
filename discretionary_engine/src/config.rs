@@ -11,7 +11,7 @@ pub use de_strategy::config::*;
 use v_exchanges::ExchangeName;
 use v_utils::macros as v_macros;
 
-#[derive(Clone, Debug, smart_default::SmartDefault, v_macros::LiveSettings, v_macros::MyConfigPrimitives, v_macros::Settings)]
+#[derive(Clone, Debug, v_macros::LiveSettings, v_macros::MyConfigPrimitives, v_macros::Settings, smart_default::SmartDefault)]
 #[settings(use_env = true)]
 pub struct AppConfig {
 	pub positions_dir: PathBuf,

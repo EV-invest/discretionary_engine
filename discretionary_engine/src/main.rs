@@ -120,7 +120,6 @@ struct PositionArgs {
 }
 #[tokio::main]
 async fn main() -> Result<()> {
-	color_eyre::install()?;
 	let cli = Cli::parse();
 
 	// Init doesn't require config
@@ -139,7 +138,7 @@ async fn main() -> Result<()> {
 
 	// Handle risk/routing commands early - they don't need the full exchange infrastructure
 	if let Commands::Risk { command } = cli.command {
-		utils::init_subscriber(None);
+		v_utils::clientside!(Some("risk"));
 		exit_on_error(match command {
 			risk::RiskCommands::Size(args) => risk::size_main(live_settings, args).await,
 			risk::RiskCommands::Balance => risk::balance_main(live_settings).await,
@@ -147,7 +146,7 @@ async fn main() -> Result<()> {
 		return Ok(());
 	}
 	if let Commands::Routing { command } = cli.command {
-		utils::init_subscriber(None);
+		v_utils::clientside!(Some("routing"));
 		let redis_port = live_settings.config()?.redis_port;
 		exit_on_error(de_routing::publish(command, redis_port).await);
 		return Ok(());
@@ -161,11 +160,7 @@ async fn main() -> Result<()> {
 		.unwrap_or_else(|| dirs::home_dir().expect("Could not determine home directory").join(".local/state"))
 		.join(config::EXE_NAME);
 	std::fs::create_dir_all(&state_dir).wrap_err_with(|| format!("Failed to create state directory at {state_dir:?}"))?;
-	let log_path = match std::env::var("TEST_LOG") {
-		Ok(_) => None,
-		Err(_) => Some(state_dir.join(".log").into_boxed_path()),
-	};
-	utils::init_subscriber(log_path);
+	v_utils::clientside!(Some("daemon"));
 	let mut js = JoinSet::new();
 	let exchanges_arc = Arc::new(
 		Exchanges::init(live_settings.clone())

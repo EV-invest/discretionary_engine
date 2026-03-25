@@ -15,6 +15,7 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
 [dependencies]
 de_core = { path = "../discretionary_engine_core" }
+de_data = { path = "../discretionary_engine_data" }
 nautilus-bybit = { path = "../libs/nautilus_trader/crates/adapters/bybit", default-features = false } #dbg
 nautilus-model = { path = "../libs/nautilus_trader/crates/model" } #dbg
 

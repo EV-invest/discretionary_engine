@@ -8,7 +8,7 @@ use uuid::Uuid;
 use v_exchanges::{ExchangeName, ExchangeOrder, Symbol, orders::LimitOrder};
 use v_utils::trades::Side;
 
-use crate::data::BookHandle;
+use crate::data::BookRef;
 
 #[derive(clap::Args, Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct ConceptualLimitChangeable {
@@ -43,7 +43,7 @@ pub struct ConceptualLimit {
 
 	/// total per-exchange qty fill value
 	__filled: HashMap<ExchangeName, f64>,
-	__book: BookHandle,
+	__book: BookRef,
 }
 impl ConceptualLimit {
 	pub fn adjust(&mut self, adj: ConceptualLimitChangeable) -> std::result::Result<(), crate::InvalidRoutingError> {
@@ -96,7 +96,7 @@ impl ConceptualLimit {
 		Ok(vec![exchg])
 	}
 
-	pub(crate) fn from_args(v: ConceptualLimitArgs, book: BookHandle) -> Self {
+	pub(crate) fn from_args(v: ConceptualLimitArgs, book: BookRef) -> Self {
 		let (size, side) = match v.changeable.qty {
 			p if p > 0. => (p, Side::Buy),
 			p if p < 0. => (-p, Side::Sell),

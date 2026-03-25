@@ -2,6 +2,8 @@ use color_eyre::eyre::{Result, WrapErr};
 use redis::{AsyncCommands, Client, aio::MultiplexedConnection, streams::StreamReadOptions};
 use serde::{Serialize, de::DeserializeOwned};
 
+/// Max idle time (ms) before a consumer is considered dead.
+const CONSUMER_ALIVE_THRESHOLD_MS: i64 = 10_000;
 pub async fn connect(port: u16) -> Result<MultiplexedConnection> {
 	let url = format!("redis://127.0.0.1:{port}/");
 	let client = Client::open(url.as_str()).wrap_err("Failed to create Redis client")?;
@@ -63,9 +65,6 @@ impl StreamSubscriber {
 		}
 	}
 }
-
-/// Max idle time (ms) before a consumer is considered dead.
-const CONSUMER_ALIVE_THRESHOLD_MS: i64 = 10_000;
 
 async fn require_active_consumer(conn: &mut MultiplexedConnection, stream_key: &str, consumer_group: &str) -> Result<()> {
 	let result: redis::RedisResult<redis::Value> = redis::cmd("XINFO").arg("CONSUMERS").arg(stream_key).arg(consumer_group).query_async(conn).await;

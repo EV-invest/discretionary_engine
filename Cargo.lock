@@ -1057,6 +1057,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "de_data"
+version = "0.1.0"
+dependencies = [
+ "arc-swap",
+ "de_core",
+ "futures-util",
+ "tokio",
+ "tracing",
+ "v_exchanges",
+ "v_utils",
+]
+
+[[package]]
 name = "de_macros"
 version = "0.1.1"
 dependencies = [
@@ -1093,6 +1106,7 @@ dependencies = [
  "clap",
  "color-eyre",
  "de_core",
+ "de_data",
  "derive-new",
  "derive_more",
  "futures-util",

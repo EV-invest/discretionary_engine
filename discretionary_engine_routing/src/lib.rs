@@ -14,7 +14,7 @@ use uuid::Uuid;
 use v_exchanges::{ExchangeOrder, orders::LimitOrder};
 use v_utils::trades::Asset;
 
-use crate::{algo::ConceptualLimit, data::Book};
+use crate::algo::ConceptualLimit;
 
 pub const STREAM_KEY: &str = "discretionary_engine:routing:commands";
 pub const CONSUMER_GROUP: &str = "routing_consumers";
@@ -50,7 +50,7 @@ pub async fn publish(cmd: Commands, redis_port: u16) -> color_eyre::eyre::Result
 }
 
 pub struct RoutingHub {
-	assets: HashMap<Asset, (HashSet<ConceptualLimit>, Book)>,
+	assets: HashMap<Asset, HashSet<ConceptualLimit>>,
 	streams: StreamMap<Asset, AssetStream>,
 	command_queue: Vec<Commands>,
 	state: ComponentState,
@@ -76,7 +76,7 @@ impl RoutingHub {
 	/// Awaits until any asset's limits produce results after a book tick.
 	/// Returns the asset and all limit results for that tick.
 	pub async fn next(&mut self) -> (Asset, Vec<LimitStepResult>) {
-		self.apply_commands();
+		self.apply_commands().await;
 		if self.streams.is_empty() {
 			std::future::pending::<()>().await;
 			unreachable!()
@@ -84,7 +84,7 @@ impl RoutingHub {
 		self.streams.next().await.expect("StreamMap yielded None despite non-empty map")
 	}
 
-	fn apply_commands(&mut self) {
+	async fn apply_commands(&mut self) {
 		let commands = std::mem::take(&mut self.command_queue);
 		let mut dirty: HashSet<Asset> = HashSet::new();
 
@@ -94,19 +94,19 @@ impl RoutingHub {
 					let asset = *args.symbol.pair.base();
 
 					if !self.assets.contains_key(&asset) {
-						info!(asset = %asset, "Spawning Book");
-						self.assets.insert(asset, (HashSet::new(), Book::new(asset)));
+						info!(asset = %asset, "Initializing asset");
+						self.assets.insert(asset, HashSet::new());
 					}
 
-					let (limits, book) = self.assets.get_mut(&asset).expect("just inserted");
-					let book_handle = book.handle();
-					let limit = ConceptualLimit::from_args(args.clone(), book_handle);
+					let book = de_data::book(asset).await;
+					let limits = self.assets.get_mut(&asset).expect("just inserted");
+					let limit = ConceptualLimit::from_args(args.clone(), book);
 					info!(id = %limit.id, "New ConceptualLimit added");
 					limits.insert(limit);
 					dirty.insert(asset);
 				}
 				Commands::Adj { id, args } =>
-					for (asset, (limits, _)) in &mut self.assets {
+					for (asset, limits) in &mut self.assets {
 						if let Some(mut limit) = limits.take_by_id(*id) {
 							match limit.adjust(args.clone()) {
 								Ok(()) => info!(%id, "ConceptualLimit adjusted"),
@@ -126,7 +126,7 @@ impl RoutingHub {
 						}
 					}
 
-					for (asset, (limits, _)) in &mut self.assets {
+					for (asset, limits) in &mut self.assets {
 						if limits.remove_by_id(*id) {
 							info!(%id, "ConceptualLimit deleted");
 							dirty.insert(*asset);
@@ -138,44 +138,38 @@ impl RoutingHub {
 		}
 
 		for asset in dirty {
-			let Some((limits, _)) = self.assets.get(&asset) else {
+			let Some(limits) = self.assets.get(&asset) else {
 				continue;
 			};
 
 			if limits.is_empty() {
 				self.assets.remove(&asset);
 				self.streams.remove(&asset);
-				info!(asset = %asset, "No limits remaining — Book dropped");
+				info!(asset = %asset, "No limits remaining — asset removed");
 				continue;
 			}
 
-			self.rebuild_asset_stream(asset);
+			self.rebuild_asset_stream(asset).await;
 		}
 	}
 
-	fn rebuild_asset_stream(&mut self, asset: Asset) {
-		let (limits, book) = self.assets.get(&asset).expect("called for existing asset");
-		let book_handle = book.handle();
+	async fn rebuild_asset_stream(&mut self, asset: Asset) {
+		let limits = self.assets.get(&asset).expect("called for existing asset");
+		let book = de_data::book(asset).await;
 		let cloned_limits: Vec<ConceptualLimit> = limits.iter().cloned().collect();
 
-		let stream = futures_util::stream::unfold((book_handle, cloned_limits), |(bh, limits)| async move {
-			bh.tick().await;
+		let stream = futures_util::stream::unfold((book, cloned_limits), |(bk, limits)| async move {
+			bk.tick().await;
 
 			let mut results: Vec<LimitStepResult> = Vec::with_capacity(limits.len());
 			for limit in &limits {
 				let result = limit.next().await;
 				results.push((limit.id, result));
 			}
-			Some((results, (bh, limits)))
+			Some((results, (bk, limits)))
 		});
 
 		self.streams.insert(asset, Box::pin(stream));
-	}
-}
-
-impl Default for RoutingHub {
-	fn default() -> Self {
-		Self::new()
 	}
 }
 

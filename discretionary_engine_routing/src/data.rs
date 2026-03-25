@@ -31,6 +31,7 @@ pub struct Book {
 	asset: Asset,
 	handle: BookHandle,
 	_task: JoinHandle<()>,
+	//TODO!!!: store history
 }
 impl Book {
 	/// Create a new Book for the given asset and subscribe to ws_book on all configured exchanges.

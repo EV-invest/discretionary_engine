@@ -9,7 +9,7 @@ use futures_util::{StreamExt as _, stream::FuturesUnordered};
 use tracing::info;
 use uuid::Uuid;
 use v_exchanges::{ExchangeOrder, orders::LimitOrder};
-use v_utils::trades::Asset;
+use v_utils::{log, trades::Asset};
 
 use crate::{
 	algo::{ConceptualLimit, ConceptualLimitChangeable},
@@ -86,7 +86,7 @@ impl RoutingHub {
 			}
 			Commands::Del { id } => {
 				self.deleted.insert(id);
-				info!(%id, "ConceptualLimit marked for deletion");
+				log!(%id, "ConceptualLimit marked for deletion");
 			}
 		}
 	}

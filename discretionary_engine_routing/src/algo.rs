@@ -1,5 +1,5 @@
 use std::{
-	collections::HashMap,
+	collections::{HashMap, HashSet},
 	hash::{Hash, Hasher},
 };
 
@@ -44,7 +44,7 @@ pub struct ConceptualLimit {
 	/// total per-exchange qty fill value
 	__book: BookRef,
 	__filled: HashMap<ExchangeName, f64>,
-	__prev: Vec<ExchangeOrder<LimitOrder>> = Vec::new(),
+	__prev: HashSet<ExchangeOrder<LimitOrder>>,
 }
 impl ConceptualLimit {
 	pub fn adjust(&mut self, adj: ConceptualLimitChangeable) -> std::result::Result<(), crate::InvalidRoutingError> {
@@ -66,11 +66,11 @@ impl ConceptualLimit {
 		Ok(())
 	}
 
-	/// Produces the vec of exact target orders that we want to see currently outstanding.
+	/// Produces the set of exact target orders that we want to see currently outstanding.
 	/// Returns None if the output is unchanged from the previous call.
 	///
 	/// no generics or "semantic" stuff at this level, - we produce exact limit orders for exact exchange with exact configuration
-	pub async fn next(&mut self) -> Result<Option<Vec<ExchangeOrder<LimitOrder>>>, Error> {
+	pub async fn next(&mut self) -> Result<Option<HashSet<ExchangeOrder<LimitOrder>>>, Error> {
 		let book = self.__book.snapshot();
 
 		//HACK: the dumbest Chase Limit imaginable
@@ -87,17 +87,16 @@ impl ConceptualLimit {
 		};
 
 		let limit = LimitOrder::new(self.side, price, self.size_q);
-		let exchg = ExchangeOrder {
-			order: limit,
-			ticker: v_exchanges::Ticker {
+		let exchg = ExchangeOrder::new(
+			limit,
+			v_exchanges::Ticker {
 				symbol: self.symbol,
 				exchange_name: ExchangeName::Bybit, //dbg
 			},
-			expected_fee_usd: None,
-		};
-		let orders = vec![exchg];
+		);
+		let orders = HashSet::from([exchg]);
 
-		if orders_eq(&self.__prev, &orders) {
+		if self.__prev == orders {
 			return Ok(None);
 		}
 		self.__prev = orders.clone();
@@ -119,7 +118,7 @@ impl ConceptualLimit {
 			id: Uuid::now_v7(),
 			__book: book,
 			__filled: HashMap::new(),
-			..
+			__prev: HashSet::new(),
 		}
 	}
 }
@@ -134,15 +133,6 @@ impl Hash for ConceptualLimit {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.id.hash(state);
 	}
-}
-
-fn orders_eq(a: &[ExchangeOrder<LimitOrder>], b: &[ExchangeOrder<LimitOrder>]) -> bool {
-	if a.len() != b.len() {
-		return false;
-	}
-	a.iter().zip(b.iter()).all(|(x, y)| {
-		x.order.side == y.order.side && x.order.price == y.order.price && x.order.qty == y.order.qty && x.ticker.symbol == y.ticker.symbol && x.ticker.exchange_name == y.ticker.exchange_name
-	})
 }
 
 //TODO: move to v_exchanges

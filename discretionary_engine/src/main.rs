@@ -187,7 +187,6 @@ async fn main() -> Result<()> {
 
 			loop {
 				//dbg: not the place for it, - we shouldn't
-				//Q: a
 				tokio::select! {
 					(asset, results) = routing_hub.next() => {
 						for (id, result) in results {

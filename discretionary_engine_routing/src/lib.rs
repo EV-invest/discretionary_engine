@@ -20,7 +20,7 @@ use crate::algo::ConceptualLimit;
 pub const STREAM_KEY: &str = "discretionary_engine:routing:commands";
 pub const CONSUMER_GROUP: &str = "routing_consumers";
 
-pub type LimitStepResult = (Uuid, std::result::Result<Option<Vec<ExchangeOrder<LimitOrder>>>, algo::Error>);
+pub type LimitStepResult = (Uuid, std::result::Result<Option<HashSet<ExchangeOrder<LimitOrder>>>, algo::Error>);
 
 type AssetStream = Pin<Box<dyn futures_util::Stream<Item = Vec<LimitStepResult>> + Send>>;
 #[derive(Debug, serde::Deserialize, serde::Serialize, clap::Subcommand)]

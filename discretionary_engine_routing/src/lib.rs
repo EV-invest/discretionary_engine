@@ -45,7 +45,7 @@ pub enum Commands {
 pub async fn publish(cmd: Commands, redis_port: u16) -> color_eyre::eyre::Result<()> {
 	let mut conn = de_core::redis_bus::connect(redis_port).await?;
 	let id = de_core::redis_bus::publish(&mut conn, STREAM_KEY, CONSUMER_GROUP, &cmd).await?;
-	info!("Routing command published with ID: {id}");
+	v_utils::log!("Routing command published with ID: {id}");
 	Ok(())
 }
 

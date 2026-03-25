@@ -14,9 +14,6 @@ struct Cli {
 	/// Use testnet instead of mainnet
 	#[arg(long, global = true)]
 	testnet: bool,
-	/// Redis port for command communication
-	#[arg(long, global = true, default_value = "6379", env = "REDIS_PORT")]
-	redis_port: u16,
 }
 
 #[derive(Subcommand)]

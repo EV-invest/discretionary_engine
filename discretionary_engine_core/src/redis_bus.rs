@@ -27,6 +27,8 @@ pub struct StreamSubscriber {
 }
 impl StreamSubscriber {
 	pub async fn new(conn: &mut MultiplexedConnection, stream_key: &'static str, consumer_group: &'static str, consumer_name: String) -> Result<Self> {
+		// Destroy and recreate the consumer group so we don't inherit pending messages from dead consumers.
+		let _: redis::RedisResult<()> = conn.xgroup_destroy(stream_key, consumer_group).await;
 		init_consumer_group(conn, stream_key, consumer_group).await?;
 		Ok(Self {
 			conn: conn.clone(),
@@ -37,7 +39,7 @@ impl StreamSubscriber {
 	}
 
 	pub async fn next<T: DeserializeOwned>(&mut self) -> Result<Option<T>> {
-		let opts = StreamReadOptions::default().group(self.consumer_group, &self.consumer_name).block(5000).count(1);
+		let opts = StreamReadOptions::default().group(self.consumer_group, &self.consumer_name).count(1);
 
 		let result: redis::RedisResult<redis::streams::StreamReadReply> = self.conn.xread_options(&[self.stream_key], &[">"], &opts).await;
 
@@ -46,39 +48,56 @@ impl StreamSubscriber {
 				for stream_key in reply.keys {
 					for entry in stream_key.ids {
 						let id = entry.id.clone();
-						if let Some(cmd) = entry.map.get("cmd")
-							&& let redis::Value::BulkString(bytes) = cmd
-						{
-							let cmd_str = String::from_utf8_lossy(bytes);
+						if let Some(cmd) = entry.map.get("cmd") {
+							let cmd_str: String = redis::FromRedisValue::from_redis_value_ref(cmd).unwrap_or_else(|e| panic!("unexpected Redis value for 'cmd': {cmd:?} (error: {e})"));
 							let command: T = serde_json::from_str(&cmd_str).wrap_err_with(|| format!("Failed to deserialize command: {cmd_str}"))?;
 							let _: () = self.conn.xack(self.stream_key, self.consumer_group, &[&id]).await?;
 							return Ok(Some(command));
 						}
 					}
 				}
+				tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 				Ok(None)
 			}
-			Err(e) =>
-				if e.to_string().contains("timeout") {
-					Ok(None)
-				} else {
-					Err(e).wrap_err("Failed to read from Redis stream")
-				},
+			Err(e) => Err(e).wrap_err(format!("Failed to read from Redis stream '{}' (group: {})", self.stream_key, self.consumer_group)),
 		}
 	}
 }
 
+/// Max idle time (ms) before a consumer is considered dead.
+const CONSUMER_ALIVE_THRESHOLD_MS: i64 = 10_000;
+
 async fn require_active_consumer(conn: &mut MultiplexedConnection, stream_key: &str, consumer_group: &str) -> Result<()> {
-	let result: redis::RedisResult<Vec<Vec<redis::Value>>> = redis::cmd("XINFO").arg("CONSUMERS").arg(stream_key).arg(consumer_group).query_async(conn).await;
-	match result {
-		Ok(consumers) if !consumers.is_empty() => Ok(()),
-		_ => {
-			let exe = std::env::current_exe()
-				.ok()
-				.and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
-				.unwrap_or_else(|| env!("CARGO_PKG_NAME").to_owned());
-			color_eyre::eyre::bail!("Service is not running. Start it with: `{exe} daemon`")
-		}
+	let result: redis::RedisResult<redis::Value> = redis::cmd("XINFO").arg("CONSUMERS").arg(stream_key).arg(consumer_group).query_async(conn).await;
+
+	let has_live_consumer = match result {
+		Ok(redis::Value::Array(consumers)) => consumers.iter().any(|consumer| {
+			// Each consumer is an array of [key, value, key, value, ...].
+			// We look for "idle" followed by its millisecond value.
+			let redis::Value::Array(fields) = consumer else { return false };
+			let mut iter = fields.iter();
+			while let Some(key) = iter.next() {
+				let redis::Value::BulkString(k) = key else { continue };
+				if k == b"idle" {
+					if let Some(val) = iter.next() {
+						let idle: i64 = redis::FromRedisValue::from_redis_value_ref(val).unwrap_or(i64::MAX);
+						return idle < CONSUMER_ALIVE_THRESHOLD_MS;
+					}
+				}
+			}
+			false
+		}),
+		_ => false,
+	};
+
+	if has_live_consumer {
+		Ok(())
+	} else {
+		let exe = std::env::current_exe()
+			.ok()
+			.and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+			.unwrap_or_else(|| env!("CARGO_PKG_NAME").to_owned());
+		color_eyre::eyre::bail!("Service is not running. Start it with: `{exe} daemon`")
 	}
 }
 

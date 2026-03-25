@@ -1051,6 +1051,7 @@ dependencies = [
  "serde",
  "serde_json",
  "strum 0.28.0",
+ "tokio",
  "v_exchanges",
  "v_utils",
 ]

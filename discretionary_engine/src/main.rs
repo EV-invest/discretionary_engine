@@ -5,6 +5,7 @@
 #![feature(trait_alias)]
 #![feature(type_changing_struct_update)]
 #![feature(stmt_expr_attributes)]
+#![feature(error_generic_member_access)]
 
 mod adjust_pos;
 mod bybit_common;
@@ -205,9 +206,12 @@ async fn main() -> Result<()> {
 
 					result = subscriber.next::<de_routing::Commands>() => {
 						match result {
-							Ok(Some(cmd)) => routing_hub.handle_command(cmd),
-							Ok(None) => {}
-							Err(e) => tracing::error!("Error reading routing command: {e}"),
+							Ok(Some(cmd)) => {
+								tracing::info!("received routing command");
+								routing_hub.handle_command(cmd);
+							}
+							Ok(None) => {} //Q: should we timeout? //TODO: check if this degrades perf at all
+							Err(e) => panic!("Error reading routing command: {e:?}"),
 						}
 					}
 

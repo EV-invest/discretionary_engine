@@ -1,125 +1,172 @@
 pub mod algo;
 pub mod data;
 
-use std::{collections::HashMap, pin::Pin};
+use std::{
+	collections::{HashMap, HashSet},
+	pin::Pin,
+};
 
-use color_eyre::eyre::Result;
 use de_core::component::{Component, ComponentState, ComponentTrigger};
-use futures_util::{StreamExt as _, stream::FuturesUnordered};
+use futures_util::StreamExt as _;
+use tokio_stream::StreamMap;
 use tracing::info;
 use uuid::Uuid;
 use v_exchanges::{ExchangeOrder, orders::LimitOrder};
-use v_utils::{log, trades::Asset};
+use v_utils::trades::Asset;
 
-use crate::{
-	algo::{ConceptualLimit, ConceptualLimitChangeable},
-	data::Book,
-};
+use crate::{algo::ConceptualLimit, data::Book};
 
 pub const STREAM_KEY: &str = "discretionary_engine:routing:commands";
 pub const CONSUMER_GROUP: &str = "routing_consumers";
 
-type LimitResult = (Uuid, ConceptualLimit, std::result::Result<Vec<ExchangeOrder<LimitOrder>>, algo::Error>);
-type LimitFut = Pin<Box<dyn std::future::Future<Output = LimitResult> + Send>>;
+pub type LimitStepResult = (Uuid, std::result::Result<Vec<ExchangeOrder<LimitOrder>>, algo::Error>);
+
 #[derive(Debug, serde::Deserialize, serde::Serialize, clap::Subcommand)]
 pub enum Commands {
 	New(algo::ConceptualLimitArgs),
-	//Q: my current understanding is Adj and Del can attempt to directly change the outstanding ConceptualLimit protocols. Since they are exclusively pulled, and also at this level we do not generate new opinions on delta intent, we can just instantly accept whatever suggestion inputted
-	//A: thus these will just directly change values on list of ConceptualLimits we're listening on atm
 	Adj {
 		#[arg(long)]
 		id: Uuid,
 		#[command(flatten)]
-		args: ConceptualLimitChangeable,
+		args: algo::ConceptualLimitChangeable,
 	},
 	Del {
 		#[arg(long)]
 		id: Uuid,
+		/// When true, the delete is skipped if the queue contains a later Adj for the same id.
+		/// Used when a ConceptualLimit self-deletes on completion but an adjustment may already be in flight.
+		#[arg(long, default_value_t = false)]
+		weak: bool,
 	},
 }
 
 /// Client-side: parse CLI command, serialize, publish to Redis, exit.
-pub async fn publish(cmd: Commands, redis_port: u16) -> Result<()> {
+pub async fn publish(cmd: Commands, redis_port: u16) -> color_eyre::eyre::Result<()> {
 	let mut conn = de_core::redis_bus::connect(redis_port).await?;
 	let id = de_core::redis_bus::publish(&mut conn, STREAM_KEY, &cmd).await?;
 	info!("Routing command published with ID: {id}");
 	Ok(())
 }
 
+type AssetStream = Pin<Box<dyn futures_util::Stream<Item = Vec<LimitStepResult>> + Send>>;
+
 pub struct RoutingHub {
-	books: HashMap<Asset, Book>,
-	limit_futs: FuturesUnordered<LimitFut>,
-	deleted: std::collections::HashSet<Uuid>,
+	assets: HashMap<Asset, (HashSet<ConceptualLimit>, Book)>,
+	streams: StreamMap<Asset, AssetStream>,
+	command_queue: Vec<Commands>,
 	state: ComponentState,
 }
+
 impl RoutingHub {
-	#[deprecated(note = "think we can get rid of `new` entirely and switch to derive Default")]
 	pub fn new() -> Self {
 		let mut hub = Self {
-			books: HashMap::new(),
-			limit_futs: FuturesUnordered::new(),
-			deleted: std::collections::HashSet::new(),
+			assets: HashMap::new(),
+			streams: StreamMap::new(),
+			command_queue: Vec::new(),
 			state: ComponentState::default(),
 		};
 		hub.transition_state(ComponentTrigger::Initialize);
 		hub
 	}
 
+	/// Queues a command to be applied on the next `next()` call.
 	pub fn handle_command(&mut self, cmd: Commands) {
-		match cmd {
-			Commands::New(args) => {
-				let asset = *args.symbol.pair.base();
-
-				if !self.books.contains_key(&asset) {
-					self.spawn_book(asset);
-				}
-
-				let book_handle = self.books.get(&asset).expect("just inserted").handle();
-				let limit = ConceptualLimit::from_args(args, book_handle);
-				let id = limit.id;
-				info!(%id, "New ConceptualLimit added");
-				self.limit_futs.push(Self::make_limit_fut(id, limit));
-			}
-			Commands::Adj { id, args } => {
-				//TODO: apply adjustment immediately (requires pulling limit out of FuturesUnordered)
-				tracing::warn!(%id, ?args, "Adj received — will apply on next cycle (not yet implemented for in-flight limits)");
-			}
-			Commands::Del { id } => {
-				self.deleted.insert(id);
-				log!(%id, "ConceptualLimit marked for deletion");
-			}
-		}
+		self.command_queue.push(cmd);
 	}
 
-	/// Blocks until any ConceptualLimit produces orders. Returns the id and orders.
-	///
-	/// Books take care of themselves (internal tokio::spawn'd tasks, killed on drop).
-	/// Limits are polled via FuturesUnordered (btc_line pattern): each limit is moved
-	/// into a future that blocks on `book.tick()` then produces orders. On completion
-	/// the limit is returned and re-scheduled.
-	pub async fn next(&mut self) -> (Uuid, std::result::Result<Vec<ExchangeOrder<LimitOrder>>, algo::Error>) {
-		loop {
-			let (id, limit, result) = self.limit_futs.next().await.expect("RoutingHub::next() called with no active limits");
-			if self.deleted.remove(&id) {
+	/// Awaits until any asset's limits produce results after a book tick.
+	/// Returns the asset and all limit results for that tick.
+	pub async fn next(&mut self) -> (Asset, Vec<LimitStepResult>) {
+		self.apply_commands();
+		self.streams.next().await.expect("RoutingHub::next() called with no active limits")
+	}
+
+	fn apply_commands(&mut self) {
+		let commands = std::mem::take(&mut self.command_queue);
+		let mut dirty: HashSet<Asset> = HashSet::new();
+
+		for (i, cmd) in commands.iter().enumerate() {
+			match cmd {
+				Commands::New(args) => {
+					let asset = *args.symbol.pair.base();
+
+					if !self.assets.contains_key(&asset) {
+						info!(asset = %asset, "Spawning Book");
+						self.assets.insert(asset, (HashSet::new(), Book::new(asset)));
+					}
+
+					let (limits, book) = self.assets.get_mut(&asset).expect("just inserted");
+					let book_handle = book.handle();
+					let limit = ConceptualLimit::from_args(args.clone(), book_handle);
+					info!(id = %limit.id, "New ConceptualLimit added");
+					limits.insert(limit);
+					dirty.insert(asset);
+				}
+				Commands::Adj { id, args } =>
+					for (asset, (limits, _)) in &mut self.assets {
+						if let Some(mut limit) = limits.take_by_id(*id) {
+							match limit.adjust(args.clone()) {
+								Ok(()) => info!(%id, "ConceptualLimit adjusted"),
+								Err(e) => tracing::error!(%id, "adjustment failed: {e}"),
+							}
+							limits.insert(limit);
+							dirty.insert(*asset);
+							break;
+						}
+					},
+				Commands::Del { id, weak } => {
+					if *weak {
+						let dominated = commands[i + 1..].iter().any(|later| matches!(later, Commands::Adj { id: adj_id, .. } if adj_id == id));
+						if dominated {
+							tracing::debug!(%id, "weak Del skipped — later Adj exists in queue");
+							continue;
+						}
+					}
+
+					for (asset, (limits, _)) in &mut self.assets {
+						if limits.remove_by_id(*id) {
+							info!(%id, "ConceptualLimit deleted");
+							dirty.insert(*asset);
+							break;
+						}
+					}
+				}
+			}
+		}
+
+		for asset in dirty {
+			let Some((limits, _)) = self.assets.get(&asset) else {
+				continue;
+			};
+
+			if limits.is_empty() {
+				self.assets.remove(&asset);
+				self.streams.remove(&asset);
+				info!(asset = %asset, "No limits remaining — Book dropped");
 				continue;
 			}
-			// Re-schedule
-			self.limit_futs.push(Self::make_limit_fut(id, limit));
-			return (id, result);
+
+			self.rebuild_asset_stream(asset);
 		}
 	}
 
-	fn spawn_book(&mut self, asset: Asset) {
-		info!(asset = %asset, "Spawning Book");
-		let book = Book::new(asset);
-		self.books.insert(asset, book);
-	}
+	fn rebuild_asset_stream(&mut self, asset: Asset) {
+		let (limits, book) = self.assets.get(&asset).expect("called for existing asset");
+		let book_handle = book.handle();
+		let cloned_limits: Vec<ConceptualLimit> = limits.iter().cloned().collect();
 
-	fn make_limit_fut(id: Uuid, limit: ConceptualLimit) -> LimitFut {
-		Box::pin(async move {
-			let result = limit.next().await;
-			(id, limit, result)
-		})
+		let stream = futures_util::stream::unfold((book_handle, cloned_limits), |(bh, limits)| async move {
+			bh.tick().await;
+
+			let mut results: Vec<LimitStepResult> = Vec::with_capacity(limits.len());
+			for limit in &limits {
+				let result = limit.next().await;
+				results.push((limit.id, result));
+			}
+			Some((results, (bh, limits)))
+		});
+
+		self.streams.insert(asset, Box::pin(stream));
 	}
 }
 
@@ -131,7 +178,7 @@ impl Default for RoutingHub {
 
 impl std::fmt::Debug for RoutingHub {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		f.debug_struct("RoutingHub").field("n_books", &self.books.len()).field("state", &self.state).finish()
+		f.debug_struct("RoutingHub").field("n_assets", &self.assets.len()).field("state", &self.state).finish()
 	}
 }
 
@@ -145,9 +192,28 @@ impl Component for RoutingHub {
 	}
 }
 
-//DO: want some kind of tracking system for all `ConceptualLimit`s in action
-//DO: and then change/remove will naturally integrate with it
 //Nb: at this level there is no interpreting and selecting from orders generated from ConceptualLimit processes, - we just take and execute them as-is. Thinking about what others are doing is on `_strategy`, - in here we just do what we're told
+
+/// Helper trait for `HashSet<ConceptualLimit>` lookup by Uuid.
+/// Since `ConceptualLimit` eq/hash is by id, we iterate (sets are small, writes are rare).
+trait LimitSetExt {
+	fn take_by_id(&mut self, id: Uuid) -> Option<ConceptualLimit>;
+	fn remove_by_id(&mut self, id: Uuid) -> bool;
+}
+impl LimitSetExt for HashSet<ConceptualLimit> {
+	fn take_by_id(&mut self, id: Uuid) -> Option<ConceptualLimit> {
+		let limit = self.iter().find(|l| l.id == id).cloned()?;
+		self.remove(&limit);
+		Some(limit)
+	}
+
+	fn remove_by_id(&mut self, id: Uuid) -> bool {
+		let Some(limit) = self.iter().find(|l| l.id == id).cloned() else {
+			return false;
+		};
+		self.remove(&limit)
+	}
+}
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum RoutingError {

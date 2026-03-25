@@ -191,15 +191,17 @@ async fn main() -> Result<()> {
 
 			loop {
 				tokio::select! {
-					(id, result) = routing_hub.next() => {
-						match &result {
-							Ok(orders) => {
-								for order in orders {
-									info!(%id, ?order, "ConceptualLimit produced order");
+					(asset, results) = routing_hub.next() => {
+						for (id, result) in results {
+							match &result {
+								Ok(orders) => {
+									for order in orders {
+										info!(%asset, %id, ?order, "produced order");
+									}
 								}
-							}
-							Err(e) => {
-								tracing::error!(%id, "ConceptualLimit::next() failed: {e}");
+								Err(e) => {
+									tracing::error!(%asset, %id, "ConceptualLimit::next() failed: {e}");
+								}
 							}
 						}
 					}

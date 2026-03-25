@@ -10,7 +10,7 @@ use v_utils::trades::Side;
 
 use crate::data::BookHandle;
 
-#[derive(clap::Args, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, clap::Args, Debug, serde::Deserialize, serde::Serialize)]
 pub struct ConceptualLimitChangeable {
 	/// follows rules for normal limit orders
 	#[arg(long)]
@@ -22,7 +22,7 @@ pub struct ConceptualLimitChangeable {
 	//TODO: the actually juicy parts like the relative cost of price diff vs time
 }
 
-#[derive(clap::Args, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, clap::Args, Debug, serde::Deserialize, serde::Serialize)]
 pub struct ConceptualLimitArgs {
 	/// gimme [Symbol](v_exchanges::Symbol)
 	#[arg(long)]
@@ -32,7 +32,7 @@ pub struct ConceptualLimitArgs {
 	pub changeable: ConceptualLimitChangeable,
 }
 
-#[derive(Debug, derive_new::new)]
+#[derive(Clone, Debug, derive_new::new)]
 pub struct ConceptualLimit {
 	pub id: Uuid,
 

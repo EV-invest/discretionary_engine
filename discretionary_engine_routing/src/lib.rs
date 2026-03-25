@@ -94,10 +94,10 @@ impl RoutingHub {
 				Commands::New(args) => {
 					let asset = *args.symbol.pair.base();
 
-					if !self.assets.contains_key(&asset) {
+					self.assets.entry(asset).or_insert_with(|| {
 						info!(asset = %asset, "Initializing asset");
-						self.assets.insert(asset, HashSet::new());
-					}
+						HashSet::new()
+					});
 
 					let book = de_data::book(asset).await;
 					let limits = self.assets.get_mut(&asset).expect("just inserted");

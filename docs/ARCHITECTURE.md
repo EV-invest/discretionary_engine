@@ -174,7 +174,32 @@ TODO: update to current arch \
 when sending or receiving orders every actor attaches a `last_fill_key`. It must match the last key attached to the latest report to this actor by however handles execution of its requests. It's used to ensure that all client's requests are based on the up-to-date knowledge of the relevant state. By internal convention, if the client is yet to receive any reports, it sends `Uuid::default()`.
 
 ### RoutingHub
-TODO
+knows to set protection modes:
+- HobbleMode
+  small mishup eg connectivity lost or small timeout (like <2m)
+- ReduceOnly
+  user requested directly, or something went very wrong
+- EmergencyNuke
+  figures out timeframe, and then takes care of spawning necessary `ConceptualLimit` processes to fully reduce entirety of the exposure across the board
+  Not meant to be encountered during normal execution
+
+//TODO: finish
+
+### ExchangeOrder
+takes care of execution of self (most importantly keeping state in-sink with exchange).
+
+outside communication in cases of:
+- failed to execute
+  timeout, network faults, 
+
+Q: what happens when ip timeout? Do we report back to the Conceptual limit? Or do we keep at it? At what point does it become worthwhile reporting upstream?
+A: synchronization with exchange state is fundamental complexity, and thus cannot be fully wrapped out through libraries. Hence, significant amount of state mngmt will be done by `ExchangeOrder` itself
+
+HobbleMode // poor connectivity, - reject submission of new `ConceptualLimit`s
+
+ReduceOnly // reject instantly anything that doesn't have hardcoded `reduce-only` on it (even if intention is directionally correct)
+
+if post-only, is pre-compiled with ConceptualLimit's limit cut-off, and on rejection climbs all the way up to it.
 
 ### Updates
 [RoutingHub](#routinghub) persists books for all the ongoing ConceptualLimits. Each Book takes care of updating state itself. They are spawned for the `Exchange x Instrument`s from associated `AggConfig`

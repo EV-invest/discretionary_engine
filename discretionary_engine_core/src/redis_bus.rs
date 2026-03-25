@@ -5,7 +5,10 @@ use serde::{Serialize, de::DeserializeOwned};
 pub async fn connect(port: u16) -> Result<MultiplexedConnection> {
 	let url = format!("redis://127.0.0.1:{port}/");
 	let client = Client::open(url.as_str()).wrap_err("Failed to create Redis client")?;
-	let conn = client.get_multiplexed_async_connection().await.wrap_err("Failed to connect to Redis")?;
+	let conn = client
+		.get_multiplexed_async_connection()
+		.await
+		.wrap_err_with(|| format!("Redis is not running on port {port}. Start it with: redis-server --port {port}"))?;
 	Ok(conn)
 }
 

@@ -21,6 +21,7 @@ pub const CONSUMER_GROUP: &str = "routing_consumers";
 
 pub type LimitStepResult = (Uuid, std::result::Result<Vec<ExchangeOrder<LimitOrder>>, algo::Error>);
 
+type AssetStream = Pin<Box<dyn futures_util::Stream<Item = Vec<LimitStepResult>> + Send>>;
 #[derive(Debug, serde::Deserialize, serde::Serialize, clap::Subcommand)]
 pub enum Commands {
 	New(algo::ConceptualLimitArgs),
@@ -47,8 +48,6 @@ pub async fn publish(cmd: Commands, redis_port: u16) -> color_eyre::eyre::Result
 	info!("Routing command published with ID: {id}");
 	Ok(())
 }
-
-type AssetStream = Pin<Box<dyn futures_util::Stream<Item = Vec<LimitStepResult>> + Send>>;
 
 pub struct RoutingHub {
 	assets: HashMap<Asset, (HashSet<ConceptualLimit>, Book)>,
@@ -194,6 +193,16 @@ impl Component for RoutingHub {
 
 //Nb: at this level there is no interpreting and selecting from orders generated from ConceptualLimit processes, - we just take and execute them as-is. Thinking about what others are doing is on `_strategy`, - in here we just do what we're told
 
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum RoutingError {
+	Invalid(InvalidRoutingError),
+	Other(miette::Error),
+}
+#[derive(Debug, derive_more::Display)]
+pub enum InvalidRoutingError {
+	#[display("adjustment would reverse position (hint: submit a Del and a new New instead)")]
+	AdjustmentWouldReverse,
+}
 /// Helper trait for `HashSet<ConceptualLimit>` lookup by Uuid.
 /// Since `ConceptualLimit` eq/hash is by id, we iterate (sets are small, writes are rare).
 trait LimitSetExt {
@@ -213,16 +222,4 @@ impl LimitSetExt for HashSet<ConceptualLimit> {
 		};
 		self.remove(&limit)
 	}
-}
-
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum RoutingError {
-	Invalid(InvalidRoutingError),
-	Other(miette::Error),
-}
-
-#[derive(Debug, derive_more::Display)]
-pub enum InvalidRoutingError {
-	#[display("adjustment would reverse position (hint: submit a Del and a new New instead)")]
-	AdjustmentWouldReverse,
 }

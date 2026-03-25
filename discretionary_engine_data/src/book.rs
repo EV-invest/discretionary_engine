@@ -9,9 +9,25 @@ use v_utils::trades::Asset;
 /// Shared read handle to a continuously-updated orderbook. Cheaply cloneable.
 pub type BookRef = Arc<BookShared>;
 
+type PullResult = (
+	ExchangeName,
+	Box<dyn ExchangeStream<Item = BookUpdate>>,
+	Result<BookUpdate, v_exchanges::adapters::generics::ws::WsError>,
+);
 pub struct BookShared {
 	snapshot: ArcSwap<BookShape>,
 	notify: Notify,
+}
+impl BookShared {
+	/// Current merged orderbook snapshot.
+	pub fn snapshot(&self) -> Arc<BookShape> {
+		self.snapshot.load_full()
+	}
+
+	/// Wait until the book has been updated.
+	pub async fn tick(&self) {
+		self.notify.notified().await;
+	}
 }
 
 impl Default for BookShared {
@@ -29,40 +45,12 @@ impl std::fmt::Debug for BookShared {
 	}
 }
 
-impl BookShared {
-	/// Current merged orderbook snapshot.
-	pub fn snapshot(&self) -> Arc<BookShape> {
-		self.snapshot.load_full()
-	}
-
-	/// Wait until the book has been updated.
-	pub async fn tick(&self) {
-		self.notify.notified().await;
-	}
-}
-
-type PullResult = (
-	ExchangeName,
-	Box<dyn ExchangeStream<Item = BookUpdate>>,
-	Result<BookUpdate, v_exchanges::adapters::generics::ws::WsError>,
-);
-
 /// Per-asset orderbook. Owned by DataHub, not shared directly.
 /// Interior mutability via UnsafeCell — only the single poll loop ever calls `pull()`.
 pub(crate) struct Book {
 	pub shared: BookRef,
 	inner: UnsafeCell<BookInner>,
 }
-
-struct BookInner {
-	exchange_shapes: HashMap<ExchangeName, BookShape>,
-	futs: FuturesUnordered<Pin<Box<dyn std::future::Future<Output = PullResult> + Send>>>,
-	//TODO!!!: history
-}
-
-/// SAFETY: only the single DataHub poll task ever accesses the UnsafeCell contents.
-unsafe impl Sync for Book {}
-
 impl Book {
 	pub fn new(asset: Asset) -> Self {
 		let mut inner = BookInner {
@@ -152,6 +140,15 @@ impl Book {
 		self.shared.notify.notify_waiters();
 	}
 }
+
+struct BookInner {
+	exchange_shapes: HashMap<ExchangeName, BookShape>,
+	futs: FuturesUnordered<Pin<Box<dyn std::future::Future<Output = PullResult> + Send>>>,
+	//TODO!!!: history
+}
+
+/// SAFETY: only the single DataHub poll task ever accesses the UnsafeCell contents.
+unsafe impl Sync for Book {}
 
 fn apply_side(levels: &mut Vec<(f64, f64)>, deltas: &[(f64, f64)]) {
 	for &(price, qty) in deltas {

@@ -1,3 +1,4 @@
+#![feature(default_field_values)]
 pub mod algo;
 pub mod data;
 
@@ -19,7 +20,7 @@ use crate::algo::ConceptualLimit;
 pub const STREAM_KEY: &str = "discretionary_engine:routing:commands";
 pub const CONSUMER_GROUP: &str = "routing_consumers";
 
-pub type LimitStepResult = (Uuid, std::result::Result<Vec<ExchangeOrder<LimitOrder>>, algo::Error>);
+pub type LimitStepResult = (Uuid, std::result::Result<Option<Vec<ExchangeOrder<LimitOrder>>>, algo::Error>);
 
 type AssetStream = Pin<Box<dyn futures_util::Stream<Item = Vec<LimitStepResult>> + Send>>;
 #[derive(Debug, serde::Deserialize, serde::Serialize, clap::Subcommand)]
@@ -158,11 +159,11 @@ impl RoutingHub {
 		let book = de_data::book(asset).await;
 		let cloned_limits: Vec<ConceptualLimit> = limits.iter().cloned().collect();
 
-		let stream = futures_util::stream::unfold((book, cloned_limits), |(bk, limits)| async move {
+		let stream = futures_util::stream::unfold((book, cloned_limits), |(bk, mut limits)| async move {
 			bk.tick().await;
 
 			let mut results: Vec<LimitStepResult> = Vec::with_capacity(limits.len());
-			for limit in &limits {
+			for limit in &mut limits {
 				let result = limit.next().await;
 				results.push((limit.id, result));
 			}

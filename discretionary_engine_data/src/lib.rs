@@ -7,17 +7,6 @@ use v_utils::trades::Asset;
 
 pub use crate::book::{BookRef, BookShared};
 
-static DATA_HUB: OnceLock<DataHub> = OnceLock::new();
-
-struct DataHub {
-	req_tx: mpsc::UnboundedSender<BookRequest>,
-}
-
-struct BookRequest {
-	asset: Asset,
-	reply: tokio::sync::oneshot::Sender<BookRef>,
-}
-
 /// Get or create a BookRef for the given asset.
 pub async fn book(asset: Asset) -> BookRef {
 	let hub = DATA_HUB.get_or_init(|| {
@@ -29,6 +18,16 @@ pub async fn book(asset: Asset) -> BookRef {
 	let (reply_tx, reply_rx) = tokio::sync::oneshot::channel();
 	hub.req_tx.send(BookRequest { asset, reply: reply_tx }).expect("DataHub poll loop dead");
 	reply_rx.await.expect("DataHub poll loop dead")
+}
+static DATA_HUB: OnceLock<DataHub> = OnceLock::new();
+
+struct DataHub {
+	req_tx: mpsc::UnboundedSender<BookRequest>,
+}
+
+struct BookRequest {
+	asset: Asset,
+	reply: tokio::sync::oneshot::Sender<BookRef>,
 }
 
 async fn poll_loop(mut req_rx: mpsc::UnboundedReceiver<BookRequest>) {

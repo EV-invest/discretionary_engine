@@ -42,8 +42,9 @@ pub struct ConceptualLimit {
 	side: Side,
 
 	/// total per-exchange qty fill value
-	__filled: HashMap<ExchangeName, f64>,
 	__book: BookRef,
+	__filled: HashMap<ExchangeName, f64> = HashMap::default(),
+	__prev: Vec<ExchangeOrder<LimitOrder>> = Vec::default(),
 }
 impl ConceptualLimit {
 	pub fn adjust(&mut self, adj: ConceptualLimitChangeable) -> std::result::Result<(), crate::InvalidRoutingError> {
@@ -65,10 +66,11 @@ impl ConceptualLimit {
 		Ok(())
 	}
 
-	/// produces the vec of exact target orders that we want to see currently outstanding
+	/// Produces the vec of exact target orders that we want to see currently outstanding.
+	/// Returns None if the output is unchanged from the previous call.
 	///
 	/// no generics or "semantic" stuff at this level, - we produce exact limit orders for exact exchange with exact configuration
-	pub async fn next(&self) -> Result<Vec<ExchangeOrder<LimitOrder>>, Error> {
+	pub async fn next(&mut self) -> Result<Option<Vec<ExchangeOrder<LimitOrder>>>, Error> {
 		let book = self.__book.snapshot();
 
 		//HACK: the dumbest Chase Limit imaginable
@@ -93,7 +95,13 @@ impl ConceptualLimit {
 			},
 			expected_fee_usd: None,
 		};
-		Ok(vec![exchg])
+		let orders = vec![exchg];
+
+		if orders_eq(&self.__prev, &orders) {
+			return Ok(None);
+		}
+		self.__prev = orders.clone();
+		Ok(Some(orders))
 	}
 
 	pub(crate) fn from_args(v: ConceptualLimitArgs, book: BookRef) -> Self {
@@ -109,8 +117,9 @@ impl ConceptualLimit {
 			symbol: v.symbol,
 
 			id: Uuid::now_v7(),
-			__filled: HashMap::new(),
 			__book: book,
+			__filled: HashMap::default(),
+			__prev: Vec::default(),
 		}
 	}
 }
@@ -125,6 +134,15 @@ impl Hash for ConceptualLimit {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.id.hash(state);
 	}
+}
+
+fn orders_eq(a: &[ExchangeOrder<LimitOrder>], b: &[ExchangeOrder<LimitOrder>]) -> bool {
+	if a.len() != b.len() {
+		return false;
+	}
+	a.iter().zip(b.iter()).all(|(x, y)| {
+		x.order.side == y.order.side && x.order.price == y.order.price && x.order.qty == y.order.qty && x.ticker.symbol == y.ticker.symbol && x.ticker.exchange_name == y.ticker.exchange_name
+	})
 }
 
 //TODO: move to v_exchanges

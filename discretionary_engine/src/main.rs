@@ -192,11 +192,12 @@ async fn main() -> Result<()> {
 					(asset, results) = routing_hub.next() => {
 						for (id, result) in results {
 							match &result {
-								Ok(orders) => {
+								Ok(Some(orders)) => {
 									for order in orders {
 										info!(%asset, %id, ?order, "produced order");
 									}
 								}
+								Ok(None) => {}
 								Err(e) => {
 									tracing::error!(%asset, %id, "ConceptualLimit::next() failed: {e}");
 								}

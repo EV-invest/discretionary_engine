@@ -32,7 +32,7 @@ pub struct ConceptualLimitArgs {
 	pub changeable: ConceptualLimitChangeable,
 }
 
-#[derive(Clone, Debug, derive_new::new)]
+#[derive(Clone, Debug)]
 pub struct ConceptualLimit {
 	pub id: Uuid,
 
@@ -43,8 +43,8 @@ pub struct ConceptualLimit {
 
 	/// total per-exchange qty fill value
 	__book: BookRef,
-	__filled: HashMap<ExchangeName, f64> = HashMap::default(),
-	__prev: Vec<ExchangeOrder<LimitOrder>> = Vec::default(),
+	__filled: HashMap<ExchangeName, f64>,
+	__prev: Vec<ExchangeOrder<LimitOrder>> = Vec::new(),
 }
 impl ConceptualLimit {
 	pub fn adjust(&mut self, adj: ConceptualLimitChangeable) -> std::result::Result<(), crate::InvalidRoutingError> {
@@ -118,8 +118,8 @@ impl ConceptualLimit {
 
 			id: Uuid::now_v7(),
 			__book: book,
-			__filled: HashMap::default(),
-			__prev: Vec::default(),
+			__filled: HashMap::new(),
+			..
 		}
 	}
 }

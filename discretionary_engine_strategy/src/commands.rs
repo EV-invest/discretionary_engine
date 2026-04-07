@@ -69,7 +69,7 @@ pub async fn start_listener(redis_port: u16) -> Result<()> {
 }
 /// Reconstruct the CLI string from parsed args.
 fn build_cli_string(args: &SubmitArgs) -> String {
-	let mut parts = Vec::new();
+	let mut parts = Vec::default();
 
 	if args.testnet {
 		parts.push("--testnet".to_string());

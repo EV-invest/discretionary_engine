@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use ahash::AHashMap;
 use color_eyre::eyre::Result;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
@@ -30,7 +31,7 @@ impl BinanceExchangeFutures {
 	#[instrument]
 	pub async fn init(_live_settings: Arc<LiveSettings>) -> Result<Self> {
 		let url = Self::url().to_string();
-		let r = unsigned_request(Method::GET, &url, HashMap::new()).await?;
+		let r = unsigned_request(Method::GET, &url, AHashMap::default()).await?;
 		let binance_exchange_futures: Self = deser_reqwest(r).await?;
 		Ok(binance_exchange_futures)
 	}

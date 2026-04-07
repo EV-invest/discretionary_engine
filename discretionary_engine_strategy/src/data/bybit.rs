@@ -11,27 +11,20 @@ use nautilus_bybit::{
 	websocket::{client::BybitWebSocketClient, messages::NautilusWsMessage},
 };
 use nautilus_model::data::{Data, TradeTick};
+use smart_default::SmartDefault;
 use tokio::sync::mpsc;
 use tracing::info;
 
 /// Bybit data source configuration.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, SmartDefault)]
 pub struct BybitDataConfig {
+	#[default(BybitProductType::Linear)]
 	pub product_type: BybitProductType,
+	#[default(BybitEnvironment::Mainnet)]
 	pub environment: BybitEnvironment,
+	#[default(vec!["BTCUSDT".to_string()])]
 	pub symbols: Vec<String>,
 }
-
-impl Default for BybitDataConfig {
-	fn default() -> Self {
-		Self {
-			product_type: BybitProductType::Linear,
-			environment: BybitEnvironment::Mainnet,
-			symbols: vec!["BTCUSDT".to_string()],
-		}
-	}
-}
-
 /// Initialize Bybit data stream and return a channel receiver for trades.
 ///
 /// This function handles all Bybit-specific logic:
@@ -47,7 +40,7 @@ pub async fn init_data(config: BybitDataConfig, tx: mpsc::UnboundedSender<TradeT
 	// Fetch instrument data via HTTP
 	let http_client = BybitHttpClient::new(None, Some(60), None, None, None, None, None)?;
 
-	let mut all_instruments = Vec::new();
+	let mut all_instruments = Vec::default();
 	for symbol in &config.symbols {
 		let instruments = http_client
 			.request_instruments(config.product_type, Some(symbol.clone()))

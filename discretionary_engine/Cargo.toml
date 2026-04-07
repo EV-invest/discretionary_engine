@@ -14,52 +14,50 @@ repository = "https://github.com/valeratrades/discretionary_engine"
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
 [dependencies]
-de_core = { path = "../discretionary_engine_core" }
-de_macros = { path = "../discretionary_engine_macros", version = "^0.1.1" }
-de_risk = { path = "../discretionary_engine_risk" }
-de_routing = { path = "../discretionary_engine_routing" }
-de_strategy = { path = "../discretionary_engine_strategy" }
-nautilus-bybit = { path = "../libs/nautilus_trader/crates/adapters/bybit", default-features = false }
-nautilus-model = { path = "../libs/nautilus_trader/crates/model" }
-
-chrono = "^0.4.44"
-clap_complete = "4.5.66"
-config = "0.15.19"
-derive-new = "0.7.0"
-dirs = "6.0"
-eyre = "0.6.12"
-function_name = "0.3.0"
-futures-util = "0.3.32"
-hex = "^0.4.3"
-hmac = "^0.12.1"
-rand = { version = "0.10.0" }
-reqwest = { version = "0.13.2", features = ["json", "blocking"] }
-serde = { version = "^1.0.228", features = ["derive"] }
-serde_json = "^1.0.149"
-serde_path_to_error = "0.1.20"
-serde_urlencoded = "^0.7.1"
-serde_with = "^3.17.0"
-sha2 = "^0.10.9"
-tokio = { version = "^1.50.0", features = ["full", "tracing"] }
-tokio-tungstenite = { version = "0.28.0", features = ["native-tls"] }
-url = "^2.5.8"
-ustr = "1.1.0"
-uuid = { version = "^1.21.0", features = ["serde", "v4", "v7", "v8"] }
-
+ahash = { workspace = true, features = ["serde"] }
+chrono.workspace = true
 clap.workspace = true
+clap_complete.workspace = true
 color-eyre.workspace = true
+config.workspace = true
+de_core.workspace = true
+de_macros.workspace = true
+de_risk.workspace = true
+de_routing.workspace = true
+de_strategy.workspace = true
+derive-new.workspace = true
 derive_more.workspace = true
+dirs.workspace = true
+eyre.workspace = true
+function_name.workspace = true
+futures-util.workspace = true
+hex.workspace = true
+hmac.workspace = true
 jiff.workspace = true
 miette.workspace = true
+nautilus-bybit.workspace = true
+nautilus-model.workspace = true
+rand.workspace = true
+reqwest = { workspace = true, features = ["json", "blocking"] }
 secrecy.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+serde_path_to_error.workspace = true
+serde_urlencoded.workspace = true
+serde_with.workspace = true
+sha2.workspace = true
 smart-default.workspace = true
 snapshot_fonts.workspace = true
 strum.workspace = true
+tokio = { workspace = true, features = ["full", "tracing"] }
+tokio-tungstenite = { workspace = true, features = ["native-tls"] }
 tracing.workspace = true
+url.workspace = true
+ustr.workspace = true
+uuid = { workspace = true, features = ["serde", "v4", "v7", "v8"] }
 v_exchanges.workspace = true
 v_utils.workspace = true
 
 [dev-dependencies]
-lazy_static = "1.5.0"
-
 insta.workspace = true
+lazy_static.workspace = true

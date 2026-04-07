@@ -124,7 +124,7 @@ async fn main() -> Result<()> {
 }
 /// Reconstruct the CLI string from parsed args.
 fn build_cli_string(args: &SubmitArgs, testnet: bool) -> String {
-	let mut parts = Vec::new();
+	let mut parts = Vec::default();
 
 	if testnet {
 		parts.push("--testnet".to_string());

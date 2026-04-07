@@ -116,8 +116,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn internals() {
-		let mut ts = TrailingStopIndicator::new();
-		let mut orders = Vec::new();
+		let mut ts = TrailingStopIndicator::default();
+		let mut orders = Vec::default();
 		let prices = v_utils::distributions::laplace_random_walk(100.0, 1000, 0.1, 0.0, Some(42));
 		for (i, price) in prices.iter().enumerate() {
 			if let Some(order) = ts.step(*price, Percent(0.02), Side::Sell, &Symbol::new("BTC", "USDT", Market::BinanceFutures)) {

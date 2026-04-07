@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use ahash::AHashMap;
 use color_eyre::eyre::Result;
 use tokio::{
 	select,
@@ -57,20 +58,20 @@ pub async fn hub(live_settings: Arc<LiveSettings>, mut rx: mpsc::Receiver<Positi
 
 	let (fills_tx, mut fills_rx) = mpsc::channel::<ExchangeToHub>(32);
 	let (orders_tx, orders_rx) = watch::channel::<HubToExchange>(HubToExchange::default());
-	let mut js = JoinSet::new();
+	let mut js = JoinSet::default();
 
 	// Spawn Binance
 	let exchanges_clone = exchanges.clone();
 	let live_settings_clone = live_settings.clone();
 	js.spawn(async move {
-		let mut exchange_runtimes_js = JoinSet::new();
+		let mut exchange_runtimes_js = JoinSet::default();
 		binance::binance_runtime(live_settings_clone, &mut exchange_runtimes_js, fills_tx, orders_rx, exchanges_clone.binance.clone()).await;
 		unreachable!();
 		//exchange_runtimes_js.join_all().await;
 	});
 
-	let mut positions_local_knowledge: HashMap<Uuid, PositionLocalKnowledge> = HashMap::new();
-	let mut exchanges_local_knowledge: HashMap<Market, ExchangeLocalKnowledge> = HashMap::new();
+	let mut positions_local_knowledge: AHashMap<Uuid, PositionLocalKnowledge> = AHashMap::default();
+	let mut exchanges_local_knowledge: AHashMap<Market, ExchangeLocalKnowledge> = AHashMap::default();
 
 	//LOOP: Main hub loop, runs forever
 	loop {
@@ -108,14 +109,14 @@ struct ExchangeLocalKnowledge {
 #[instrument(skip(orders_tx, positions_local_knowledge), fields(position_local_knowledge = Empty))]
 fn handle_update_from_position(
 	hub_rx: PositionToHub,
-	positions_local_knowledge: &mut HashMap<Uuid, PositionLocalKnowledge>,
+	positions_local_knowledge: &mut AHashMap<Uuid, PositionLocalKnowledge>,
 	orders_tx: &tokio::sync::watch::Sender<HubToExchange>,
-	exchanges_local_knowledge: &mut HashMap<Market, ExchangeLocalKnowledge>,
+	exchanges_local_knowledge: &mut AHashMap<Market, ExchangeLocalKnowledge>,
 ) -> Result<()> {
 	let position_id = hub_rx.position_callback.position_id;
 	let position_local_knowledge = positions_local_knowledge
 		.entry(position_id)
-		.or_insert(PositionLocalKnowledge::new(Uuid::default(), hub_rx.position_callback.sender, Vec::new()));
+		.or_insert(PositionLocalKnowledge::new(Uuid::default(), hub_rx.position_callback.sender, Vec::default()));
 	Span::current().record("position_local_knowledge", format!("{position_local_knowledge:?}"));
 
 	if position_local_knowledge.key != hub_rx.key {
@@ -125,7 +126,7 @@ fn handle_update_from_position(
 	}
 	position_local_knowledge.requested_orders = hub_rx.orders;
 
-	let mut requested_orders_all_positions: Vec<ConceptualOrder<PositionOrderId>> = Vec::new();
+	let mut requested_orders_all_positions: Vec<ConceptualOrder<PositionOrderId>> = Vec::default();
 	for (position_id, plk) in positions_local_knowledge.iter() {
 		let remap_to_position_id = plk.requested_orders.iter().map(|o| {
 			let new_id = PositionOrderId::new_from_protocol_id(*position_id, o.id.clone());
@@ -164,7 +165,7 @@ async fn handle_fill(fill: ExchangeToHub, position_local_knowledge: &mut Positio
 /// Thing that applies all the logic for deciding on how to best express ensemble of requested orders.
 #[instrument]
 fn hub_process_orders(conceptual_orders: Vec<ConceptualOrder<PositionOrderId>>) -> Vec<Order<PositionOrderId>> {
-	let mut orders: Vec<Order<PositionOrderId>> = Vec::new();
+	let mut orders: Vec<Order<PositionOrderId>> = Vec::default();
 	for o in conceptual_orders {
 		match &o.order_type {
 			ConceptualOrderType::Market(_) => {

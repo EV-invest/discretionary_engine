@@ -1,9 +1,11 @@
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
+use ahash::AHashMap;
 use color_eyre::eyre::{Result, eyre};
 use de_core::config::ExchangeConfig;
 use tracing::{error, instrument};
 use v_exchanges::{
+	RetryConfig,
 	adapters::generics::http::{ApiError, AuthError, HandleError, RequestError},
 	core::{Exchange, ExchangeName, Instrument},
 	error::ExchangeError,
@@ -11,7 +13,7 @@ use v_exchanges::{
 use v_utils::{trades::Usd, utils::Sysexit};
 
 #[instrument]
-pub async fn main(exchanges: &HashMap<String, ExchangeConfig>, other_balances: Option<&HashMap<String, f64>>) -> Result<(), RiskError> {
+pub async fn main(exchanges: &AHashMap<String, ExchangeConfig>, other_balances: Option<&AHashMap<String, f64>>) -> Result<(), RiskError> {
 	let exchanges = initialize_exchanges(exchanges)?;
 	let balances = collect_balances(&exchanges).await?;
 
@@ -48,16 +50,19 @@ impl v_utils::utils::SysexitCode for RiskError {
 }
 
 #[instrument(skip_all)]
-pub fn initialize_exchanges(exchanges: &HashMap<String, ExchangeConfig>) -> Result<Vec<Box<dyn Exchange>>> {
+pub fn initialize_exchanges(exchanges: &AHashMap<String, ExchangeConfig>) -> Result<Vec<Box<dyn Exchange>>> {
 	if exchanges.is_empty() {
 		tracing::warn!("No exchanges configured");
 	}
-	let mut out: Vec<Box<dyn Exchange>> = Vec::new();
+	let mut out: Vec<Box<dyn Exchange>> = Vec::default();
 	for (name, auth) in exchanges {
 		let exchange_name = ExchangeName::from_str(name)?;
 		let mut exchange = exchange_name.init_client();
 		exchange.auth(auth.api_pubkey.clone(), auth.api_secret.clone());
-		exchange.set_max_tries(3);
+		exchange.set_retry_config(RetryConfig {
+			max_retries: 3,
+			..Default::default()
+		});
 		exchange.set_recv_window(std::time::Duration::from_secs(15));
 
 		if exchange_name == ExchangeName::Kucoin {
@@ -71,14 +76,14 @@ pub fn initialize_exchanges(exchanges: &HashMap<String, ExchangeConfig>) -> Resu
 }
 
 #[instrument(skip_all)]
-pub async fn collect_balances(exchanges: &[Box<dyn Exchange>]) -> Result<HashMap<String, Usd>, RiskError> {
-	let mut balances = HashMap::new();
-	let mut unauthorized = Vec::new();
+pub async fn collect_balances(exchanges: &[Box<dyn Exchange>]) -> Result<AHashMap<String, Usd>, RiskError> {
+	let mut balances = AHashMap::default();
+	let mut unauthorized = Vec::default();
 	for exchange in exchanges {
 		let name = exchange.name().to_string();
-		match exchange.balances(Instrument::Perp, None).await {
-			Ok(balance) => {
-				balances.insert(name, balance.total);
+		match exchange.personal_info(Instrument::Perp, None).await {
+			Ok(info) => {
+				balances.insert(name, info.balances.total);
 			}
 			Err(e) if is_unauthorized(&e) => {
 				error!("{name}: {e}");
@@ -95,7 +100,7 @@ pub async fn collect_balances(exchanges: &[Box<dyn Exchange>]) -> Result<HashMap
 	Ok(balances)
 }
 #[instrument(skip_all)]
-pub fn get_total_balance(balances: &HashMap<String, Usd>, other_balances: Option<&HashMap<String, f64>>) -> Usd {
+pub fn get_total_balance(balances: &AHashMap<String, Usd>, other_balances: Option<&AHashMap<String, f64>>) -> Usd {
 	let mut total = Usd(0.);
 	for balance in balances.values() {
 		total += *balance;

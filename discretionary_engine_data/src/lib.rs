@@ -1,7 +1,8 @@
 mod book;
 
-use std::{collections::HashMap, sync::OnceLock};
+use std::sync::OnceLock;
 
+use ahash::AHashMap;
 use tokio::sync::mpsc;
 use v_utils::trades::Asset;
 
@@ -31,8 +32,8 @@ struct BookRequest {
 }
 
 async fn poll_loop(mut req_rx: mpsc::UnboundedReceiver<BookRequest>) {
-	let mut books: HashMap<Asset, book::Book> = HashMap::new();
-	let mut pending: Vec<BookRequest> = Vec::new();
+	let mut books: AHashMap<Asset, book::Book> = AHashMap::default();
+	let mut pending: Vec<BookRequest> = Vec::default();
 
 	loop {
 		// Apply pending requests
@@ -59,7 +60,7 @@ async fn poll_loop(mut req_rx: mpsc::UnboundedReceiver<BookRequest>) {
 		}
 
 		// Poll all books concurrently
-		let mut futs = futures_util::stream::FuturesUnordered::new();
+		let mut futs = futures_util::stream::FuturesUnordered::default();
 		for book in books.values() {
 			futs.push(book.pull());
 		}

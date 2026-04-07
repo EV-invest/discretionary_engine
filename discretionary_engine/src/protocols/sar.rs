@@ -189,8 +189,8 @@ mod tests {
 		let test_data_ohlc = mock_p_to_ohlc(&test_data_p, 10);
 
 		let mut sar_indicator = SarIndicator::init(&init_ohlc, &sar_wrapper.0.read().unwrap());
-		let mut recorded_indicator_values = Vec::new();
-		let mut orders = Vec::new();
+		let mut recorded_indicator_values = Vec::default();
+		let mut orders = Vec::default();
 
 		for (i, ohlc) in test_data_ohlc.into_iter().enumerate() {
 			let maybe_order = sar_indicator.step(ohlc, &sar_wrapper.0.read().unwrap(), &Symbol::default(), Side::Sell);

@@ -16,5 +16,5 @@ pub async fn publish_command(conn: &mut redis::aio::MultiplexedConnection, comma
 
 /// Subscribe to commands from the strategy Redis stream.
 pub async fn subscribe_commands(conn: &mut redis::aio::MultiplexedConnection, consumer_name: &str) -> color_eyre::eyre::Result<de_core::redis_bus::StreamSubscriber> {
-	de_core::redis_bus::StreamSubscriber::new(conn, STREAM_KEY, CONSUMER_GROUP, consumer_name.to_string()).await
+	de_core::redis_bus::StreamSubscriber::try_new(conn, STREAM_KEY, CONSUMER_GROUP, consumer_name.to_string()).await
 }

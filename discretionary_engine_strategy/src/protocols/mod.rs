@@ -74,7 +74,7 @@ pub fn interpret_protocol_specs(protocol_specs: Vec<String>) -> Result<Vec<Proto
 		bail!("No protocols specified");
 	}
 	assert_eq!(protocol_specs.len(), protocol_specs.iter().collect::<HashSet<&String>>().len()); // protocol specs are later used as their IDs
-	let mut protocols = Vec::new();
+	let mut protocols = Vec::default();
 	for spec in protocol_specs {
 		let protocol = Protocol::from_str(&spec)?;
 		protocols.push(protocol);
@@ -100,7 +100,7 @@ impl ProtocolOrders {
 			"Semantically makes no sense. Protocol must always send Vec<Some<Order>> for all possible orders it will ever send, them being None if at current iteration they are ignored"
 		);
 
-		let mut symbols_set = HashSet::new();
+		let mut symbols_set: HashSet<v_exchanges::Symbol> = HashSet::default();
 		for order in &orders.iter().flatten().collect::<Vec<&ConceptualOrderPercents>>() {
 			symbols_set.insert(order.symbol);
 		}
@@ -127,7 +127,7 @@ impl ProtocolOrders {
 		// Must be comparing against the largest of min_qties, as we can't force protocols to send their largest order always of the order_type with smallest min_qty.
 		if left_controlled_notional < min_qty_any_ordertype {
 			return RecalculatedAllocation {
-				orders: Vec::new(),
+				orders: Vec::default(),
 				leftovers: Some(left_controlled_notional),
 			};
 		}

@@ -68,7 +68,7 @@ pub async fn size_main(live_settings: Arc<LiveSettings>, args: SizeArgs) -> Resu
 	let use_from_phone = risk_layers_config.map(|c| c.from_phone).unwrap_or(false);
 	let use_lost_last_trade = risk_layers_config.map(|c| c.lost_last_trade).unwrap_or(false);
 
-	let mut risk_layers = Vec::new();
+	let mut risk_layers = Vec::default();
 	if use_from_phone {
 		log!("[RiskLayer::FromPhone] Enabled -> -1 tier");
 		risk_layers.push(RiskLayer::FromPhone(FromPhone));

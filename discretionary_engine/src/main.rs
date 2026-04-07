@@ -7,12 +7,9 @@
 #![feature(stmt_expr_attributes)]
 #![feature(error_generic_member_access)]
 
-mod adjust_pos;
-mod bybit_common;
 mod chase_limit;
 pub mod config;
 pub mod exchange_apis;
-mod nuke;
 pub mod positions;
 pub mod protocols;
 mod risk;
@@ -158,7 +155,7 @@ async fn main() -> Result<()> {
 		.join(config::EXE_NAME);
 	std::fs::create_dir_all(&state_dir).wrap_err_with(|| format!("Failed to create state directory at {state_dir:?}"))?;
 	v_utils::clientside!(Some("daemon"));
-	let mut js = JoinSet::new();
+	let mut js = JoinSet::default();
 	let exchanges_arc = Arc::new(
 		Exchanges::init(live_settings.clone())
 			.await
@@ -173,11 +170,11 @@ async fn main() -> Result<()> {
 			let redis_port = config.redis_port;
 
 			de_core::config::init_exchanges(config.exchanges.clone());
-			let mut routing_hub = de_routing::RoutingHub::new();
+			let mut routing_hub = de_routing::RoutingHub::default();
 
 			let consumer_name = format!("routing-{}", std::process::id());
 			let mut conn = de_core::redis_bus::connect(redis_port).await?;
-			let mut subscriber = de_core::redis_bus::StreamSubscriber::new(&mut conn, de_routing::STREAM_KEY, de_routing::CONSUMER_GROUP, consumer_name).await?;
+			let mut subscriber = de_core::redis_bus::StreamSubscriber::try_new(&mut conn, de_routing::STREAM_KEY, de_routing::CONSUMER_GROUP, consumer_name).await?;
 
 			info!("Service running, listening on Redis port {redis_port}...");
 
@@ -220,8 +217,6 @@ async fn main() -> Result<()> {
 
 			Ok(())
 		}
-		Commands::AdjustPos(adjust_pos_args) => adjust_pos::main(adjust_pos_args, live_settings.clone(), cli.testnet).await,
-		Commands::Nuke(nuke_args) => nuke::main(nuke_args, live_settings.clone(), cli.testnet).await,
 		Commands::Strategy { command } => {
 			let redis_port = live_settings.config()?.redis_port;
 			match command {

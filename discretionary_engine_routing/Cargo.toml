@@ -14,23 +14,17 @@ description = "Route and reason about incoming detla change intents"
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
 [dependencies]
-de_core = { path = "../discretionary_engine_core" }
-de_data = { path = "../discretionary_engine_data" }
-nautilus-bybit = { path = "../libs/nautilus_trader/crates/adapters/bybit", default-features = false } #dbg
-nautilus-model = { path = "../libs/nautilus_trader/crates/model" } #dbg
-
-derive-new = "0.7"
-futures-util = "0.3.31"
-parking_lot = "0.12"
-tokio = { version = "^1.49.0", features = ["full", "signal"] }
-tokio-stream = "0.1"
-
+ahash = { workspace = true, features = ["serde"] }
 clap.workspace = true
 color-eyre.workspace = true
+de_core.workspace = true
+de_data.workspace = true
 derive_more.workspace = true
+futures-util.workspace = true
 miette.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+tokio-stream.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 v_exchanges.workspace = true

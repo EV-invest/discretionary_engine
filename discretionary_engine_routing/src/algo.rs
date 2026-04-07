@@ -1,8 +1,9 @@
 use std::{
-	collections::{HashMap, HashSet},
+	collections::HashSet,
 	hash::{Hash, Hasher},
 };
 
+use ahash::AHashMap;
 use miette::Result;
 use uuid::Uuid;
 use v_exchanges::{ExchangeName, ExchangeOrder, Symbol, orders::LimitOrder};
@@ -43,7 +44,7 @@ pub struct ConceptualLimit {
 
 	/// total per-exchange qty fill value
 	__book: BookRef,
-	__filled: HashMap<ExchangeName, f64>,
+	__filled: AHashMap<ExchangeName, f64>,
 	__prev: HashSet<ExchangeOrder<LimitOrder>>,
 }
 impl ConceptualLimit {
@@ -117,8 +118,8 @@ impl ConceptualLimit {
 
 			id: Uuid::now_v7(),
 			__book: book,
-			__filled: HashMap::new(),
-			__prev: HashSet::new(),
+			__filled: AHashMap::default(),
+			__prev: HashSet::default(),
 		}
 	}
 }

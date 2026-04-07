@@ -34,8 +34,10 @@
             };
           };
           style = {
+            format = true;
             modules = {
               no_chrono = "false"; #dbg: used in code that's to be deprecated anyways
+              prefer_ahash = "true";
             };
           };
         };
@@ -44,7 +46,6 @@
           enable = true;
           lastSupportedVersion = "nightly-2025-10-12";
           jobs.default = true;
-          langs = [ "rs" ];
           excalidraw."docs/arch.excalidraw".standalone = true;
           labels.extra = [
             # I think I should be grouping labels through color, right

@@ -8,7 +8,7 @@ use crate::{MAX_CONNECTION_FAILURES, MUT_CURRENT_CONNECTION_FAILURES};
 
 pub fn format_eyre_chain_for_user(e: eyre::Report) -> String {
 	let chain = e.chain().rev().collect::<Vec<_>>();
-	let mut s = String::new();
+	let mut s = String::default();
 	for (i, e) in chain.into_iter().enumerate() {
 		if i > 0 {
 			s.push('\n');

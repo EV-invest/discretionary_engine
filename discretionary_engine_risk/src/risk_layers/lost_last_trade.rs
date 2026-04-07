@@ -13,7 +13,7 @@ impl LostLastTrade {
 	pub fn evaluate(&self) -> RiskLayerResult {
 		RiskLayerResult {
 			adjustment: Percent(-1.0),
-			certainty: PercentU::new(1.0).unwrap(),
+			certainty: PercentU::try_new(1.0).unwrap(),
 		}
 	}
 }

@@ -1,5 +1,6 @@
-use std::{cell::UnsafeCell, collections::HashMap, pin::Pin, sync::Arc};
+use std::{cell::UnsafeCell, pin::Pin, sync::Arc};
 
+use ahash::AHashMap;
 use arc_swap::ArcSwap;
 use futures_util::{StreamExt as _, stream::FuturesUnordered};
 use tokio::sync::Notify;
@@ -54,8 +55,8 @@ pub(crate) struct Book {
 impl Book {
 	pub fn new(asset: Asset) -> Self {
 		let mut inner = BookInner {
-			exchange_shapes: HashMap::new(),
-			futs: FuturesUnordered::new(),
+			exchange_shapes: AHashMap::default(),
+			futs: FuturesUnordered::default(),
 		};
 
 		let exchanges = de_core::config::build_exchanges();
@@ -142,7 +143,7 @@ impl Book {
 }
 
 struct BookInner {
-	exchange_shapes: HashMap<ExchangeName, BookShape>,
+	exchange_shapes: AHashMap<ExchangeName, BookShape>,
 	futs: FuturesUnordered<Pin<Box<dyn std::future::Future<Output = PullResult> + Send>>>,
 	//TODO!!!: history
 }

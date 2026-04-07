@@ -28,7 +28,7 @@ pub struct StreamSubscriber {
 	consumer_group: &'static str,
 }
 impl StreamSubscriber {
-	pub async fn new(conn: &mut MultiplexedConnection, stream_key: &'static str, consumer_group: &'static str, consumer_name: String) -> Result<Self> {
+	pub async fn try_new(conn: &mut MultiplexedConnection, stream_key: &'static str, consumer_group: &'static str, consumer_name: String) -> Result<Self> {
 		// Destroy and recreate the consumer group so we don't inherit pending messages from dead consumers.
 		let _: redis::RedisResult<()> = conn.xgroup_destroy(stream_key, consumer_group).await;
 		init_consumer_group(conn, stream_key, consumer_group).await?;

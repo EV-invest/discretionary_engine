@@ -6,12 +6,11 @@ description = "Shared market data infrastructure for discretionary_engine"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-de_core = { path = "../discretionary_engine_core" }
-
-arc-swap = "1"
-futures-util = "0.3.31"
-tokio = { version = "^1.49.0", features = ["sync", "rt"] }
-
+ahash = { workspace = true, features = ["serde"] }
+arc-swap.workspace = true
+de_core.workspace = true
+futures-util.workspace = true
+tokio = { workspace = true, features = ["sync", "rt"] }
 tracing.workspace = true
 v_exchanges.workspace = true
 v_utils.workspace = true

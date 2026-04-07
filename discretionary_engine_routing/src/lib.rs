@@ -2,11 +2,9 @@
 pub mod algo;
 pub mod data;
 
-use std::{
-	collections::{HashMap, HashSet},
-	pin::Pin,
-};
+use std::{collections::HashSet, pin::Pin};
 
+use ahash::AHashMap;
 use de_core::component::{Component, ComponentId, ComponentState, ComponentTrigger};
 use futures_util::StreamExt as _;
 use tokio_stream::StreamMap;
@@ -51,24 +49,12 @@ pub async fn publish(cmd: Commands, redis_port: u16) -> color_eyre::eyre::Result
 }
 
 pub struct RoutingHub {
-	assets: HashMap<Asset, HashSet<ConceptualLimit>>,
+	assets: AHashMap<Asset, HashSet<ConceptualLimit>>,
 	streams: StreamMap<Asset, AssetStream>,
 	command_queue: Vec<Commands>,
 	state: ComponentState,
 }
-
 impl RoutingHub {
-	pub fn new() -> Self {
-		let mut hub = Self {
-			assets: HashMap::new(),
-			streams: StreamMap::new(),
-			command_queue: Vec::new(),
-			state: ComponentState::default(),
-		};
-		hub.transition_state(ComponentTrigger::Initialize);
-		hub
-	}
-
 	/// Queues a command to be applied on the next `next()` call.
 	pub fn handle_command(&mut self, cmd: Commands) {
 		self.command_queue.push(cmd);
@@ -87,7 +73,7 @@ impl RoutingHub {
 
 	async fn apply_commands(&mut self) {
 		let commands = std::mem::take(&mut self.command_queue);
-		let mut dirty: HashSet<Asset> = HashSet::new();
+		let mut dirty: HashSet<Asset> = HashSet::default();
 
 		for (i, cmd) in commands.iter().enumerate() {
 			match cmd {
@@ -96,7 +82,7 @@ impl RoutingHub {
 
 					self.assets.entry(asset).or_insert_with(|| {
 						info!(asset = %asset, "Initializing asset");
-						HashSet::new()
+						HashSet::default()
 					});
 
 					let book = de_data::book(asset).await;
@@ -171,6 +157,19 @@ impl RoutingHub {
 		});
 
 		self.streams.insert(asset, Box::pin(stream));
+	}
+}
+
+impl Default for RoutingHub {
+	fn default() -> Self {
+		let mut hub = Self {
+			assets: AHashMap::default(),
+			streams: StreamMap::default(),
+			command_queue: Vec::default(),
+			state: ComponentState::default(),
+		};
+		hub.transition_state(ComponentTrigger::Initialize);
+		hub
 	}
 }
 

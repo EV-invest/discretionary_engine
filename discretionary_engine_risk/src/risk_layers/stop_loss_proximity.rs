@@ -21,7 +21,7 @@ impl StopLossProximity {
 		//TODO: non-linearity of pos/neg values (will tackle later)
 		RiskLayerResult {
 			adjustment: Percent(mul.ln()),
-			certainty: PercentU::new(1.0).unwrap(),
+			certainty: PercentU::try_new(1.0).unwrap(),
 		}
 	}
 
@@ -52,7 +52,10 @@ mod tests {
 	fn proper_mul_snapshot_test() {
 		//TODO!: switch to using non-homogeneous steps, so the data is dencer near 0 (requires: 1) new snapshot fn, 2) fn to gen it)
 		let x_points: Vec<f64> = (0..1000).map(|x| (x as f64) / 10.0).collect();
-		let mul_out: Vec<f64> = x_points.iter().map(|x| StopLossProximity::new(Span::new().minutes((x * 60.0) as i64)).mul_criterion()).collect();
+		let mul_out: Vec<f64> = x_points
+			.iter()
+			.map(|x| StopLossProximity::new(Span::default().minutes((x * 60.0) as i64)).mul_criterion())
+			.collect();
 		let plot = SnapshotP::build(&mul_out).fallback(true /*HACK: wait for proper snapshot fonts impl*/).draw();
 
 		insta::assert_snapshot!(plot, @r"

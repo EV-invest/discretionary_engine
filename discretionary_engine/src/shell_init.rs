@@ -48,7 +48,7 @@ alias de="{exe_name}"
 
 	fn completions(&self) -> String {
 		let mut cmd = Cli::command();
-		let mut buffer = Vec::new();
+		let mut buffer = Vec::default();
 		let shell = self.to_clap_shell();
 		clap_complete::generate(shell, &mut cmd, EXE_NAME, &mut buffer);
 

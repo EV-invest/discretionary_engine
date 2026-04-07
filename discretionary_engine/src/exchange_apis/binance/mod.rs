@@ -15,10 +15,10 @@ impl BinanceExchange {
 	pub fn min_qties_batch(&self, base_asset: &str, ordertypes: &[ConceptualOrderType]) -> Vec<f64> {
 		assert_ne!(*self, Self::default());
 
-		let mut min_qties = Vec::new();
+		let mut min_qties = Vec::default();
 		for s in &self.binance_futures_info.symbols {
 			if s.base_asset == *base_asset {
-				let mut all_min_notionals_for_asset = Vec::new();
+				let mut all_min_notionals_for_asset = Vec::default();
 				for ordertype in ordertypes {
 					all_min_notionals_for_asset.push(s.min_trade_qty_notional(ordertype));
 				}
@@ -33,7 +33,7 @@ impl BinanceExchange {
 
 	#[instrument(skip(self))]
 	pub fn min_qty_any_ordertype(&self, base_asset: &str) -> f64 {
-		let mut on_different_pairs = Vec::new();
+		let mut on_different_pairs = Vec::default();
 		for s in &self.binance_futures_info.symbols {
 			if s.base_asset == *base_asset {
 				//HACK: just assumes that there is no way to hit a smaller min_qty limit by placing a limit order, no matter at what offset to the price.
@@ -64,9 +64,10 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
+use ahash::AHashMap;
 use chrono::Utc;
 use color_eyre::eyre::{Result, bail};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use info::BinanceExchangeFutures;
 pub use orders::*;
 use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
@@ -160,7 +161,7 @@ pub async fn binance_runtime(
 ) {
 	debug!("Binance_runtime started");
 	let mut last_reported_fill_key = Uuid::default();
-	let currently_deployed: Arc<RwLock<Vec<BinanceOrder>>> = Arc::new(RwLock::new(Vec::new()));
+	let currently_deployed: Arc<RwLock<Vec<BinanceOrder>>> = Arc::new(RwLock::new(Vec::default()));
 
 	use secrecy::ExposeSecret;
 	use v_exchanges::ExchangeName;
@@ -294,7 +295,7 @@ pub struct BinanceKline {
 pub async fn poll_futures_order<S: AsRef<str>>(key: S, secret: S, binance_order: &BinanceOrder) -> Result<FuturesPositionResponse> {
 	let url = FuturesPositionResponse::get_url();
 
-	let mut params = HashMap::<&str, String>::new();
+	let mut params = AHashMap::<&str, String>::default();
 	params.insert("symbol", binance_order.base_info.symbol.to_string());
 	params.insert("orderId", format!("{}", &binance_order.binance_id.unwrap()));
 	params.insert("recvWindow", "20000".to_owned()); // dbg currently they are having some issues with response speed
@@ -321,13 +322,13 @@ pub async fn post_futures_order(key: String, secret: String, order: &Order<Posit
 }
 
 #[instrument(skip_all)]
-pub async fn get_futures_positions(key: String, secret: String) -> Result<HashMap<String, f64>> {
+pub async fn get_futures_positions(key: String, secret: String) -> Result<AHashMap<String, f64>> {
 	let url = FuturesAllPositionsResponse::get_url();
 
-	let r = signed_request(Method::GET, url.as_str(), HashMap::new(), key, secret).await?;
+	let r = signed_request(Method::GET, url.as_str(), AHashMap::default(), key, secret).await?;
 	let positions: Vec<FuturesAllPositionsResponse> = deser_reqwest(r).await?;
 
-	let mut positions_map = HashMap::<String, f64>::new();
+	let mut positions_map = AHashMap::<String, f64>::default();
 	for position in positions {
 		let symbol = position.symbol.clone();
 		let qty = position.positionAmt.parse::<f64>()?;
@@ -342,7 +343,7 @@ pub async fn close_orders(key: String, secret: String, orders: &[BinanceOrder]) 
 	let url = base_url.join("/fapi/v1/order").unwrap();
 
 	let handles = orders.iter().map(|o| {
-		let mut params = HashMap::<&str, String>::new();
+		let mut params = AHashMap::<&str, String>::default();
 		params.insert("symbol", o.base_info.symbol.to_string());
 		params.insert("orderId", o.binance_id.unwrap().to_string());
 		params.insert("recvWindow", "60000".to_owned()); // dbg currently they are having some issues with response speed
@@ -368,7 +369,7 @@ pub async fn futures_price(asset: &str) -> Result<f64> {
 	let base_url = Market::BinanceFutures.get_base_url();
 	let url = base_url.join("/fapi/v2/ticker/price")?;
 
-	let mut params = HashMap::<&str, String>::new();
+	let mut params = AHashMap::<&str, String>::default();
 	params.insert("symbol", symbol.to_string());
 
 	let r = unsigned_request(Method::GET, url.as_str(), params).await?;
@@ -379,7 +380,7 @@ pub async fn futures_price(asset: &str) -> Result<f64> {
 
 #[instrument(skip(key, secret))]
 pub async fn get_balance(key: String, secret: String, market: Market) -> Result<f64> {
-	let mut params = HashMap::<&str, String>::new();
+	let mut params = AHashMap::<&str, String>::default();
 	params.insert("recvWindow", "60000".to_owned());
 	match market {
 		Market::BinanceFutures => {
@@ -424,9 +425,9 @@ pub async fn get_balance(key: String, secret: String, market: Market) -> Result<
 }
 
 #[instrument]
-pub async fn unsigned_request(http_method: reqwest::Method, endpoint_str: &str, params: HashMap<&str, String>) -> Result<reqwest::Response> {
+pub async fn unsigned_request(http_method: reqwest::Method, endpoint_str: &str, params: AHashMap<&str, String>) -> Result<reqwest::Response> {
 	debug!("requesting unsigned\nEndpoint: {endpoint_str}\nParams: {:?}", &params);
-	let client = reqwest::Client::new();
+	let client = reqwest::Client::default();
 	let _ = &params;
 	let r: reqwest::Response = client.request(http_method, endpoint_str).send().await?;
 
@@ -439,8 +440,8 @@ pub async fn unsigned_request(http_method: reqwest::Method, endpoint_str: &str, 
 }
 
 #[instrument(skip(key, secret))]
-pub async fn signed_request<S: AsRef<str>>(http_method: reqwest::Method, endpoint_str: &str, mut params: HashMap<&'static str, String>, key: S, secret: S) -> Result<reqwest::Response> {
-	let mut headers = HeaderMap::new();
+pub async fn signed_request<S: AsRef<str>>(http_method: reqwest::Method, endpoint_str: &str, mut params: AHashMap<&'static str, String>, key: S, secret: S) -> Result<reqwest::Response> {
+	let mut headers = HeaderMap::default();
 	headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json;charset=utf-8"));
 	headers.insert("X-MBX-APIKEY", HeaderValue::from_str(key.as_ref())?);
 	let client = reqwest::Client::builder().default_headers(headers).build()?;
@@ -593,7 +594,7 @@ async fn handle_hub_orders_update(
 	}
 	trace!("closed orders");
 
-	let mut just_deployed = Vec::new();
+	let mut just_deployed = Vec::default();
 	for o in target_orders {
 		let b = match post_futures_order(pubkey.to_string(), secret.to_string(), &o, binance_exchange_arc.clone()).await {
 			Ok(order) => order,

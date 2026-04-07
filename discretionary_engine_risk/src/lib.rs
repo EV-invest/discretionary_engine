@@ -183,7 +183,7 @@ pub async fn ema_prev_times_for_same_move(exchange: &dyn Exchange, symbol: Symbo
 		.fold(0_i64, |acc: i64, (i, x): (usize, &Span)| acc + x.total(Unit::Second).unwrap() as i64 * (i as i64 + 1)) as f64
 		/ ((times.len() + 1) as f64 * times.len() as f64 / 2.0);
 	debug!(?ema);
-	Ok(Span::new().seconds(ema as i64))
+	Ok(Span::default().seconds(ema as i64))
 }
 
 /// Apply rounding bias to skew the result towards rounder numbers.
@@ -231,7 +231,7 @@ mod tests {
 	#[test]
 	fn test_apply_round_bias() {
 		// Test with 1% bias (default)
-		let bias = PercentU::new(0.01).unwrap();
+		let bias = PercentU::try_new(0.01).unwrap();
 
 		// 1234.5 should move towards 1200 (closer round number)
 		let result = apply_round_bias(1234.5, bias);
@@ -242,7 +242,7 @@ mod tests {
 		assert!((result - 1250.0).abs() < 1.0, "Expected value close to 1250, got {result}");
 
 		// Test with higher bias (10%)
-		let bias = PercentU::new(0.10).unwrap();
+		let bias = PercentU::try_new(0.10).unwrap();
 		let result = apply_round_bias(1234.5, bias);
 		assert!(result < 1234.5 && result > 1230.0, "Expected larger shift with 10% bias, got {result}");
 

@@ -7,7 +7,7 @@ use std::{
 	pin::Pin,
 };
 
-use de_core::component::{Component, ComponentState, ComponentTrigger};
+use de_core::component::{Component, ComponentId, ComponentState, ComponentTrigger};
 use futures_util::StreamExt as _;
 use tokio_stream::StreamMap;
 use tracing::info;
@@ -181,6 +181,10 @@ impl std::fmt::Debug for RoutingHub {
 }
 
 impl Component for RoutingHub {
+	fn component_id(&self) -> ComponentId {
+		ComponentId::new(std::any::type_name::<Self>().split("::").last().unwrap())
+	}
+
 	fn state(&self) -> ComponentState {
 		self.state
 	}

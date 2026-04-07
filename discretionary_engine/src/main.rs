@@ -59,10 +59,6 @@ enum Commands {
 	Run(PositionArgs),
 	/// Long-running service: initializes exchanges, starts RoutingHub, listens for commands
 	Daemon,
-	/// Adjust an existing position size smartly
-	AdjustPos(adjust_pos::AdjustPosArgs),
-	/// Close position completely
-	Nuke(nuke::NukeArgs),
 	/// Risk management commands
 	Risk {
 		#[command(subcommand)]

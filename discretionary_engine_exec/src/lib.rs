@@ -14,7 +14,7 @@ use v_exchanges::ExchangeOrder;
 /// An order is considered _closed_ for:
 ///  - `Denied`, `Rejected`, `Canceled`, `Expired`, `Filled`
 #[repr(C)]
-#[derive(Copy, Clone, Debug, Default, Display, Hash, PartialEq, Eq, PartialOrd, Ord, AsRefStr, FromRepr, EnumIter, EnumString)]
+#[derive(AsRefStr, Clone, Copy, Debug, Default, Display, EnumIter, EnumString, Eq, FromRepr, Hash, Ord, PartialEq, PartialOrd)]
 #[strum(ascii_case_insensitive)]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum OrderState {

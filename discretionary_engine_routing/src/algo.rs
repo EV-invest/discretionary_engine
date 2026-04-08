@@ -1,9 +1,6 @@
-use std::{
-	collections::HashSet,
-	hash::{Hash, Hasher},
-};
+use std::hash::{Hash, Hasher};
 
-use ahash::AHashMap;
+use ahash::{AHashMap, AHashSet};
 use miette::Result;
 use uuid::Uuid;
 use v_exchanges::{ExchangeName, ExchangeOrder, Symbol, orders::LimitOrder};
@@ -45,7 +42,7 @@ pub struct ConceptualLimit {
 	/// total per-exchange qty fill value
 	__book: BookRef,
 	__filled: AHashMap<ExchangeName, f64>,
-	__prev: HashSet<ExchangeOrder<LimitOrder>>,
+	__prev: AHashSet<ExchangeOrder<LimitOrder>>,
 }
 impl ConceptualLimit {
 	pub fn adjust(&mut self, adj: ConceptualLimitChangeable) -> std::result::Result<(), crate::InvalidRoutingError> {
@@ -55,7 +52,7 @@ impl ConceptualLimit {
 			_ => unreachable!("should've checked before here, - where we still can report to user"),
 		};
 
-		let total_filled: f64 = self.__filled.values().map(|v| *v as f64).sum();
+		let total_filled: f64 = self.__filled.values().copied().sum();
 		if side != self.side && total_filled > 0.0 {
 			//return Err(crate::InvalidRoutingError::AdjustmentWouldReverse); //Q: do we care to go freak out and go into HobbleMode when we simply need to revrese the position?
 			tracing::warn!("requested adjustment reverses the acquisition direction. Might not be intentional or desirable.\nAlready have {total_filled:?}")
@@ -71,7 +68,7 @@ impl ConceptualLimit {
 	/// Returns None if the output is unchanged from the previous call.
 	///
 	/// no generics or "semantic" stuff at this level, - we produce exact limit orders for exact exchange with exact configuration
-	pub async fn next(&mut self) -> Result<Option<HashSet<ExchangeOrder<LimitOrder>>>, Error> {
+	pub async fn next(&mut self) -> Result<Option<AHashSet<ExchangeOrder<LimitOrder>>>, Error> {
 		let book = self.__book.snapshot();
 
 		//HACK: the dumbest Chase Limit imaginable
@@ -95,7 +92,7 @@ impl ConceptualLimit {
 				exchange_name: ExchangeName::Bybit, //dbg
 			},
 		);
-		let orders = HashSet::from([exchg]);
+		let orders = AHashSet::from([exchg]);
 
 		if self.__prev == orders {
 			return Ok(None);
@@ -119,7 +116,7 @@ impl ConceptualLimit {
 			id: Uuid::now_v7(),
 			__book: book,
 			__filled: AHashMap::default(),
-			__prev: HashSet::default(),
+			__prev: AHashSet::default(),
 		}
 	}
 }

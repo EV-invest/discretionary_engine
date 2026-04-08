@@ -2,9 +2,9 @@
 pub mod algo;
 pub mod data;
 
-use std::{collections::HashSet, pin::Pin};
+use std::pin::Pin;
 
-use ahash::AHashMap;
+use ahash::{AHashMap, AHashSet};
 use de_core::component::{Component, ComponentId, ComponentState, ComponentTrigger};
 use futures_util::StreamExt as _;
 use tokio_stream::StreamMap;
@@ -18,7 +18,7 @@ use crate::algo::ConceptualLimit;
 pub const STREAM_KEY: &str = "discretionary_engine:routing:commands";
 pub const CONSUMER_GROUP: &str = "routing_consumers";
 
-pub type LimitStepResult = (Uuid, std::result::Result<Option<HashSet<ExchangeOrder<LimitOrder>>>, algo::Error>);
+pub type LimitStepResult = (Uuid, std::result::Result<Option<AHashSet<ExchangeOrder<LimitOrder>>>, algo::Error>);
 
 type AssetStream = Pin<Box<dyn futures_util::Stream<Item = Vec<LimitStepResult>> + Send>>;
 #[derive(Debug, serde::Deserialize, serde::Serialize, clap::Subcommand)]
@@ -49,7 +49,7 @@ pub async fn publish(cmd: Commands, redis_port: u16) -> color_eyre::eyre::Result
 }
 
 pub struct RoutingHub {
-	assets: AHashMap<Asset, HashSet<ConceptualLimit>>,
+	assets: AHashMap<Asset, AHashSet<ConceptualLimit>>,
 	streams: StreamMap<Asset, AssetStream>,
 	command_queue: Vec<Commands>,
 	state: ComponentState,
@@ -73,7 +73,7 @@ impl RoutingHub {
 
 	async fn apply_commands(&mut self) {
 		let commands = std::mem::take(&mut self.command_queue);
-		let mut dirty: HashSet<Asset> = HashSet::default();
+		let mut dirty: AHashSet<Asset> = AHashSet::default();
 
 		for (i, cmd) in commands.iter().enumerate() {
 			match cmd {
@@ -82,7 +82,7 @@ impl RoutingHub {
 
 					self.assets.entry(asset).or_insert_with(|| {
 						info!(asset = %asset, "Initializing asset");
-						HashSet::default()
+						AHashSet::default()
 					});
 
 					let book = de_data::book(asset).await;
@@ -211,7 +211,7 @@ trait LimitSetExt {
 	fn take_by_id(&mut self, id: Uuid) -> Option<ConceptualLimit>;
 	fn remove_by_id(&mut self, id: Uuid) -> bool;
 }
-impl LimitSetExt for HashSet<ConceptualLimit> {
+impl LimitSetExt for AHashSet<ConceptualLimit> {
 	fn take_by_id(&mut self, id: Uuid) -> Option<ConceptualLimit> {
 		let limit = self.iter().find(|l| l.id == id).cloned()?;
 		self.remove(&limit);

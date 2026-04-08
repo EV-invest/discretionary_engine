@@ -2,6 +2,7 @@ mod approaching_limit;
 mod dummy_market;
 mod sar;
 mod trailing_stop;
+use ahash::AHashSet;
 use std::{collections::HashSet, str::FromStr};
 
 use approaching_limit::{ApproachingLimit, ApproachingLimitWrapper};
@@ -176,7 +177,7 @@ impl ProtocolOrders {
 			"Semantically makes no sense. Protocol must always send Vec<Some<Order>> for all possible orders it will ever send, them being None if at current iteration they are ignored"
 		);
 
-		let mut symbols_set: HashSet<crate::exchange_apis::Symbol> = HashSet::default();
+		let mut symbols_set: AHashSet<crate::exchange_apis::Symbol> = AHashSet::default();
 		for order in &orders.iter().flatten().collect::<Vec<&ConceptualOrderPercents>>() {
 			symbols_set.insert(order.symbol.clone());
 		}

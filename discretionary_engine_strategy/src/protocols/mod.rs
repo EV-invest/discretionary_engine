@@ -2,6 +2,7 @@
 
 mod dummy_market;
 
+use ahash::AHashSet;
 use std::{collections::HashSet, str::FromStr};
 
 use color_eyre::eyre::{Result, bail};
@@ -100,7 +101,7 @@ impl ProtocolOrders {
 			"Semantically makes no sense. Protocol must always send Vec<Some<Order>> for all possible orders it will ever send, them being None if at current iteration they are ignored"
 		);
 
-		let mut symbols_set: HashSet<v_exchanges::Symbol> = HashSet::default();
+		let mut symbols_set: AHashSet<v_exchanges::Symbol> = AHashSet::default();
 		for order in &orders.iter().flatten().collect::<Vec<&ConceptualOrderPercents>>() {
 			symbols_set.insert(order.symbol);
 		}

@@ -1175,6 +1175,7 @@ dependencies = [
 name = "de_strategy"
 version = "1.0.0"
 dependencies = [
+ "ahash 0.8.12",
  "clap",
  "color-eyre",
  "de_core",

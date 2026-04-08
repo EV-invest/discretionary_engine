@@ -27,6 +27,7 @@ color-eyre = "^0.6.5"
 config = "0.15.22"
 de_core = { path = "discretionary_engine_core" }
 de_data = { path = "discretionary_engine_data" }
+de_exec = { path = "discretionary_engine_exec" }
 de_macros = { path = "discretionary_engine_macros" }
 de_risk = { path = "discretionary_engine_risk" }
 de_routing = { path = "discretionary_engine_routing" }

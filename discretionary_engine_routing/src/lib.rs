@@ -55,11 +55,6 @@ pub struct RoutingHub {
 	state: ComponentState,
 }
 impl RoutingHub {
-	/// Queues a command to be applied on the next `next()` call.
-	pub fn handle_command(&mut self, cmd: Commands) {
-		self.command_queue.push(cmd);
-	}
-
 	/// Awaits until any asset's limits produce results after a book tick.
 	/// Returns the asset and all limit results for that tick.
 	pub async fn next(&mut self) -> (Asset, Vec<LimitStepResult>) {
@@ -138,6 +133,11 @@ impl RoutingHub {
 
 			self.rebuild_asset_stream(asset).await;
 		}
+	}
+
+	/// alias for pushing to private `command_queue`
+	pub fn push_command(&mut self, cmd: Commands) {
+		self.command_queue.push(cmd);
 	}
 
 	async fn rebuild_asset_stream(&mut self, asset: Asset) {

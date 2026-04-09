@@ -2,9 +2,9 @@ mod approaching_limit;
 mod dummy_market;
 mod sar;
 mod trailing_stop;
-use ahash::AHashSet;
 use std::{collections::HashSet, str::FromStr};
 
+use ahash::AHashSet;
 use approaching_limit::{ApproachingLimit, ApproachingLimitWrapper};
 use color_eyre::eyre::{Result, bail};
 use dummy_market::DummyMarketWrapper;

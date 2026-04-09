@@ -163,7 +163,7 @@ async fn main() -> Result<()> {
 	);
 	let tx = hub::init_hub(live_settings.clone(), &mut js, exchanges_arc.clone());
 
-	exit_on_error(match cli.command {
+	match cli.command {
 		Commands::Run(args) => command_new(args, live_settings.clone(), tx, exchanges_arc).await,
 		Commands::Daemon => {
 			let config = live_settings.config()?;
@@ -178,6 +178,7 @@ async fn main() -> Result<()> {
 
 			info!("Service running, listening on Redis port {redis_port}...");
 
+			//LOOP: main loop
 			loop {
 				//dbg: not the place for it, - we shouldn't
 				tokio::select! {
@@ -201,7 +202,7 @@ async fn main() -> Result<()> {
 						match result {
 							Ok(Some(cmd)) => {
 								tracing::info!("received routing command");
-								routing_hub.handle_command(cmd);
+								routing_hub.push_command(cmd);
 							}
 							Ok(None) => {} //Q: should we timeout? //TODO: check if this degrades perf at all
 							Err(e) => panic!("Error reading routing command: {e:?}"),
@@ -210,12 +211,11 @@ async fn main() -> Result<()> {
 
 					_ = tokio::signal::ctrl_c() => {
 						info!("Service shutting down...");
-						break;
+						return Ok(());
 					}
 				}
 			}
-
-			Ok(())
+			unreachable!()
 		}
 		Commands::Strategy { command } => {
 			let redis_port = live_settings.config()?.redis_port;
@@ -233,9 +233,7 @@ async fn main() -> Result<()> {
 			}
 		}
 		Commands::Risk { .. } | Commands::Routing { .. } | Commands::Init(_) => unreachable!(),
-	});
-
-	Ok(())
+	}
 }
 
 // TODO: change to initializing exchange sockets once, then just have a loop listening on localhost, that accepts new positions or modification requests.

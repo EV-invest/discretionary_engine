@@ -7,8 +7,8 @@
 //! rejects the PostOnly immediately (spread too tight), we skip straight to market.
 //!
 //! Net effect: maker fills when the market cooperates, taker fills as a guaranteed fallback.
-//! The interval sleep between lots starts *after* the lot completes, so total wall time is
-//! `time + (lots - 1) * interval` in the worst case, or just `time` if all lots fill early.
+//! Each lot occupies exactly one interval slot; the chase phase runs within it and any remaining
+//! time is spent sleeping, so total wall time is always `time`.
 
 use std::{
 	sync::Arc,
@@ -211,6 +211,7 @@ async fn main() -> Result<()> {
 	}
 
 	for i in 0..args.lots {
+		let lot_start = Instant::now();
 		let lot_num = i + 1;
 
 		chase_lot(
@@ -236,8 +237,9 @@ async fn main() -> Result<()> {
 		bar.inc(1);
 
 		if lot_num < args.lots {
+			let remaining = interval.saturating_sub(lot_start.elapsed());
 			tokio::select! {
-				_ = tokio::time::sleep(interval) => {}
+				_ = tokio::time::sleep(remaining) => {}
 				_ = shutdown.notified() => {
 					bail!("Interrupted between lots — no open orders to cancel");
 				}

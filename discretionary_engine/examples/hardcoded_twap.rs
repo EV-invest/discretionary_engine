@@ -3,11 +3,14 @@ use std::time::Duration;
 use color_eyre::eyre::{Context, ContextCompat, Result, bail};
 use discretionary_engine::config::{LiveSettings, SettingsFlags};
 use nautilus_bybit::{
-	common::enums::{BybitPositionSide, BybitProductType},
-	http::{client::BybitRawHttpClient, query::BybitPositionListParamsBuilder},
+	common::enums::{BybitAccountType, BybitPositionSide, BybitProductType},
+	http::{
+		client::BybitRawHttpClient,
+		query::{BybitPositionListParamsBuilder, BybitWalletBalanceParams},
+	},
 };
 use secrecy::ExposeSecret;
-use v_exchanges::Ticker;
+use v_exchanges::{Instrument, Ticker};
 use v_utils::{
 	io::{ConfirmResult, confirmation},
 	trades::{Side, Timeframe},
@@ -15,11 +18,11 @@ use v_utils::{
 
 #[derive(Debug, clap::Parser)]
 struct Args {
-	/// Ticker, e.g. "bybit:BTC-USDT.p"
+	/// Ticker, e.g. "bybit:BTC-USDT.p" (perp) or "bybit:TWT-USDT" (spot)
 	ticker: Ticker,
 	#[arg(long)]
 	side: Side,
-	/// Positive f64 or "all" (sell-only: uses current position size)
+	/// Positive f64 or "all" (sell-only: uses current position/balance size)
 	#[arg(short = 'q', long)]
 	quantity: String,
 	/// Total duration, e.g. "1h", "30m"
@@ -42,38 +45,59 @@ async fn main() -> Result<()> {
 
 	let live_settings = LiveSettings::new(args.settings, Duration::from_secs(5)).context("Failed to load config")?;
 	let config = live_settings.config()?;
-	let exchange_name = args.ticker.exchange_name.clone();
-	let exchange_config = config.get_exchange(exchange_name)?;
+	let exchange_config = config.get_exchange(args.ticker.exchange_name.clone())?;
 	let api_key = exchange_config.api_pubkey.clone();
 	let api_secret = exchange_config.api_secret.expose_secret().to_string();
 
 	let client = BybitRawHttpClient::with_credentials(api_key, api_secret, None, None, None, None, None, None, None).context("Failed to create Bybit HTTP client")?;
 
-	// "BTC-USDT.p" -> "BTCUSDT"
+	let is_spot = args.ticker.symbol.instrument == Instrument::Spot;
+
 	let symbol = {
 		let raw = args.ticker.symbol.to_string();
 		raw.split('.').next().unwrap_or(&raw).replace('-', "").to_uppercase()
 	};
 
+	let base_coin = args.ticker.symbol.pair.base().to_string().to_uppercase();
+
 	let total_size: f64 = match args.quantity.trim() {
 		"all" => match args.side {
-			Side::Sell => {
-				let params = BybitPositionListParamsBuilder::default()
-					.category(BybitProductType::Linear)
-					.symbol(symbol.clone())
-					.build()
-					.context("Failed to build position params")?;
-				let resp = client.get_positions(&params).await.context("Failed to fetch positions")?;
-				let pos = resp.result.list.first().with_context(|| format!("No open position for {symbol}"))?;
-				let size: f64 = pos.size.parse().context("Failed to parse position size")?;
-				if size == 0.0 {
-					bail!("Position size is zero for {symbol}");
-				}
-				if pos.side != BybitPositionSide::Buy {
-					bail!("Expected long position to sell, got {:?}", pos.side);
-				}
-				size
-			}
+			Side::Sell =>
+				if is_spot {
+					let params = BybitWalletBalanceParams {
+						account_type: BybitAccountType::Unified,
+						coin: Some(base_coin.clone()),
+					};
+					let resp = client.get_wallet_balance(&params).await.context("Failed to fetch wallet balance")?;
+					let coin_balance = resp
+						.result
+						.list
+						.iter()
+						.flat_map(|w| w.coin.iter())
+						.find(|c| c.coin.as_str().eq_ignore_ascii_case(&base_coin))
+						.with_context(|| format!("No {base_coin} balance found in wallet"))?;
+					let size = coin_balance.wallet_balance.try_into().context("Failed to convert wallet balance to f64")?;
+					if size == 0.0_f64 {
+						bail!("Wallet balance is zero for {base_coin}");
+					}
+					size
+				} else {
+					let params = BybitPositionListParamsBuilder::default()
+						.category(BybitProductType::Linear)
+						.symbol(symbol.clone())
+						.build()
+						.context("Failed to build position params")?;
+					let resp = client.get_positions(&params).await.context("Failed to fetch positions")?;
+					let pos = resp.result.list.first().with_context(|| format!("No open position for {symbol}"))?;
+					let size: f64 = pos.size.parse().context("Failed to parse position size")?;
+					if size == 0.0 {
+						bail!("Position size is zero for {symbol}");
+					}
+					if pos.side != BybitPositionSide::Buy {
+						bail!("Expected long position to sell, got {:?}", pos.side);
+					}
+					size
+				},
 			Side::Buy => unimplemented!("quantity=all with side=buy"),
 		},
 		q => {
@@ -105,19 +129,20 @@ async fn main() -> Result<()> {
 		Side::Buy => "Buy",
 		Side::Sell => "Sell",
 	};
+	let category = if is_spot { "spot" } else { "linear" };
 
 	for i in 0..args.lots {
 		let lot_num = i + 1;
 		let resp = client
 			.place_order(&serde_json::json!({
-				"category": "linear",
+				"category": category,
 				"symbol": symbol,
 				"side": order_side,
 				"orderType": "Market",
 				"qty": format!("{size_per_lot:.6}"),
 				"timeInForce": "IOC",
 				"orderLinkId": format!("twap-{}-{}", lot_num, uuid::Uuid::new_v4()),
-			"reduceOnly": args.reduce_only,
+				"reduceOnly": args.reduce_only,
 			}))
 			.await
 			.context("Failed to place order")?;

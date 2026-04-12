@@ -201,6 +201,15 @@ async fn main() -> Result<()> {
 	);
 	bar.set_message(symbol.clone());
 
+	let shutdown = Arc::new(Notify::new());
+	{
+		let shutdown = shutdown.clone();
+		tokio::spawn(async move {
+			tokio::signal::ctrl_c().await.expect("Failed to listen for Ctrl-C");
+			shutdown.notify_one();
+		});
+	}
+
 	for i in 0..args.lots {
 		let lot_num = i + 1;
 
@@ -219,6 +228,7 @@ async fn main() -> Result<()> {
 			interval,
 			args.reduce_only,
 			args.aggressive,
+			shutdown.clone(),
 		)
 		.await
 		.with_context(|| format!("[{lot_num}/{}] chase_lot failed", args.lots))?;
@@ -226,7 +236,12 @@ async fn main() -> Result<()> {
 		bar.inc(1);
 
 		if lot_num < args.lots {
-			tokio::time::sleep(interval).await;
+			tokio::select! {
+				_ = tokio::time::sleep(interval) => {}
+				_ = shutdown.notified() => {
+					bail!("Interrupted between lots — no open orders to cancel");
+				}
+			}
 		}
 	}
 
@@ -250,6 +265,7 @@ async fn chase_lot(
 	interval: Duration,
 	reduce_only: bool,
 	aggressive: bool,
+	shutdown: Arc<Notify>,
 ) -> Result<()> {
 	let deadline = Instant::now() + interval;
 	let market_fallback_at = Instant::now() + interval.mul_f64(0.9);
@@ -317,6 +333,7 @@ async fn chase_lot(
 	let mut last_price = initial_price;
 	let mut venue_order_id: Option<VenueOrderId> = None;
 	let mut filled = false;
+	let mut interrupted = false;
 
 	loop {
 		if filled {
@@ -444,6 +461,49 @@ async fn chase_lot(
 				}
 			}
 			_ = tokio::time::sleep(timeout) => {}
+			_ = shutdown.notified() => {
+				interrupted = true;
+				break;
+			}
+		}
+	}
+
+	if interrupted {
+		eprintln!("\nCtrl-C received — cancelling order {order_link_id}");
+		let cancel = BybitWsCancelOrderParams {
+			category: product_type,
+			symbol: Ustr::from(symbol),
+			order_id: None,
+			order_link_id: Some(order_link_id.clone()),
+		};
+		trade_client
+			.cancel_order(cancel, client_order_id, trader_id, strategy_id, instrument_id, venue_order_id)
+			.await
+			.context("Failed to send cancel on Ctrl-C")?;
+
+		// Wait for cancel confirmation (up to 5s)
+		let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+		let mut confirmed = false;
+		while tokio::time::Instant::now() < deadline {
+			let remaining = deadline - tokio::time::Instant::now();
+			match tokio::time::timeout(remaining, trade_stream.next()).await {
+				Ok(Some(NautilusWsMessage::OrderStatusReports(reports))) =>
+					if reports.iter().any(|r| r.client_order_id.as_ref().map(|c| c.to_string()) == Some(order_link_id.clone())) {
+						confirmed = true;
+						break;
+					},
+				Ok(_) => {}
+				Err(_) => break, // timed out
+			}
+		}
+
+		trade_client.close().await.context("Failed to close trade WS after Ctrl-C")?;
+		market_client.close().await.context("Failed to close market WS after Ctrl-C")?;
+
+		if confirmed {
+			bail!("Interrupted by Ctrl-C: order {order_link_id} cancelled successfully");
+		} else {
+			bail!("Interrupted by Ctrl-C: cancel confirmation not received for {order_link_id} — check exchange manually");
 		}
 	}
 

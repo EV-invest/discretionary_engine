@@ -1,7 +1,7 @@
 use color_eyre::eyre::Result;
-use discretionary_engine_macros::ProtocolWrapper;
+use de_macros::ProtocolWrapper;
 use tokio::{sync::mpsc, task::JoinSet};
-use v_utils::{Percent, macros::CompactFormat, trades::Side};
+use v_utils::{Percent, macros as v_macros, trades::Side};
 
 use crate::{
 	exchange_apis::{Market, Symbol, order_types::*},
@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// Literally just sends one market order.
-#[derive(Clone, CompactFormat, Debug, Default, ProtocolWrapper, derive_new::new)]
+#[derive(Clone, v_macros::CompactFormatNamed, Debug, Default, ProtocolWrapper, derive_new::new)]
 pub struct DummyMarket {
 	// dummy: String, //? Does CompactFormat correctly work with empty structs?
 }
@@ -40,7 +40,7 @@ impl ProtocolTrait for DummyMarketWrapper {
 		Ok(())
 	}
 
-	fn update_params(&self, _params: Self::Params) -> Result<()> {
+	fn set_params(&self, _params: Self::Params) -> Result<()> {
 		unimplemented!()
 	}
 

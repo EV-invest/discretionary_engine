@@ -1,0 +1,20 @@
+[package]
+name = "de_core"
+version = "0.1.0"
+edition = "2024"
+description = "Shared types for discretionary_engine"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+ahash = { workspace = true, features = ["serde"] }
+color-eyre.workspace = true
+redis = { workspace = true, features = ["tokio-comp", "streams"] }
+secrecy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["time"] }
+v_exchanges.workspace = true
+v_utils.workspace = true
+
+[lints]
+workspace = true

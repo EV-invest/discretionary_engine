@@ -1,5 +1,5 @@
 use color_eyre::eyre::Result;
-use discretionary_engine_macros::ProtocolWrapper;
+use de_macros::ProtocolWrapper;
 use futures_util::StreamExt;
 use serde_json::Value;
 use tokio::{sync::mpsc, task::JoinSet};
@@ -44,7 +44,7 @@ impl ProtocolTrait for TrailingStopWrapper {
 								tx.send(price).await.unwrap();
 							},
 						Err(e) => {
-							println!("Failed to parse message as JSON: {}", e);
+							println!("Failed to parse message as JSON: {e}");
 						}
 					}
 				}
@@ -67,7 +67,7 @@ impl ProtocolTrait for TrailingStopWrapper {
 		Ok(())
 	}
 
-	fn update_params(&self, new_params: TrailingStop) -> Result<()> {
+	fn set_params(&self, new_params: TrailingStop) -> Result<()> {
 		*self.0.write().unwrap() = new_params;
 		Ok(())
 	}
@@ -116,8 +116,8 @@ mod tests {
 
 	#[tokio::test]
 	async fn internals() {
-		let mut ts = TrailingStopIndicator::new();
-		let mut orders = Vec::new();
+		let mut ts = TrailingStopIndicator::default();
+		let mut orders = Vec::default();
 		let prices = v_utils::distributions::laplace_random_walk(100.0, 1000, 0.1, 0.0, Some(42));
 		for (i, price) in prices.iter().enumerate() {
 			if let Some(order) = ts.step(*price, Percent(0.02), Side::Sell, &Symbol::new("BTC", "USDT", Market::BinanceFutures)) {

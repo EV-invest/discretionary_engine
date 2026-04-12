@@ -22,40 +22,6 @@ use tracing::info;
 use ustr::Ustr;
 use v_utils::{log, trades::Timeframe};
 
-/// Format quantity string based on step size to avoid "Qty invalid" errors
-fn format_qty(qty: f64, qty_step: f64) -> String {
-	if qty_step >= 1.0 {
-		format!("{:.0}", qty)
-	} else if qty_step >= 0.1 {
-		format!("{:.1}", qty)
-	} else if qty_step >= 0.01 {
-		format!("{:.2}", qty)
-	} else if qty_step >= 0.001 {
-		format!("{:.3}", qty)
-	} else if qty_step >= 0.0001 {
-		format!("{:.4}", qty)
-	} else {
-		format!("{:.6}", qty)
-	}
-}
-
-/// Format price string based on tick size
-fn format_price(price: f64, tick_size: f64) -> String {
-	if tick_size >= 1.0 {
-		format!("{:.0}", price)
-	} else if tick_size >= 0.1 {
-		format!("{:.1}", price)
-	} else if tick_size >= 0.01 {
-		format!("{:.2}", price)
-	} else if tick_size >= 0.001 {
-		format!("{:.3}", price)
-	} else if tick_size >= 0.0001 {
-		format!("{:.4}", price)
-	} else {
-		format!("{:.6}", price)
-	}
-}
-
 /// Executes an order using WebSocket-based chase-limit strategy
 ///
 /// # Arguments
@@ -83,7 +49,7 @@ pub async fn execute_ws_chase_limit(
 	price_tick: f64,
 	duration: Option<Timeframe>,
 ) -> Result<f64> {
-	log!("Starting WebSocket chase-limit execution for {} {} {}", side, target_qty, symbol);
+	log!("Starting WebSocket chase-limit execution for {side} {target_qty} {symbol}");
 
 	// Create identifiers for nautilus order management
 	let trader_id = TraderId::from("DISC_ENGINE-001");
@@ -103,19 +69,19 @@ pub async fn execute_ws_chase_limit(
 		.await
 		.context("Failed to fetch initial ticker data")?;
 
-	let ticker = ticker_response.result.list.get(0).ok_or_else(|| color_eyre::eyre::eyre!("No ticker data found for {}", symbol))?;
+	let ticker = ticker_response.result.list.get(0).ok_or_else(|| color_eyre::eyre::eyre!("No ticker data found for {symbol}"))?;
 
 	let initial_bid: f64 = ticker.bid1_price.parse().context("Failed to parse bid price")?;
 	let initial_ask: f64 = ticker.ask1_price.parse().context("Failed to parse ask price")?;
 
-	log!("Initial market: bid={}, ask={}", initial_bid, initial_ask);
+	log!("Initial market: bid={initial_bid}, ask={initial_ask}");
 
 	// Calculate execution parameters based on duration
 	let (update_interval, end_time) = if let Some(duration_tf) = duration {
 		let total_duration_ms = duration_tf.0;
 		let update_interval_ms = 1000; // Check/update every 1 second
 		let end_time = std::time::Instant::now() + Duration::from_millis(total_duration_ms);
-		log!("Patient execution over {:?}: update_interval={}ms", duration_tf, update_interval_ms);
+		log!("Patient execution over {duration_tf:?}: update_interval={update_interval_ms}ms");
 		(Duration::from_millis(update_interval_ms), Some(end_time))
 	} else {
 		// Aggressive execution: update quickly
@@ -153,18 +119,18 @@ pub async fn execute_ws_chase_limit(
 	match trade_client.subscribe_orders().await {
 		Ok(()) => log!("Successfully subscribed to order events"),
 		Err(e) => {
-			log!("Failed to subscribe to orders: {:?}", e);
-			bail!("Failed to subscribe to order events - this usually means invalid API credentials: {}", e);
+			log!("Failed to subscribe to orders: {e:?}");
+			bail!("Failed to subscribe to order events - this usually means invalid API credentials: {e}");
 		}
 	}
 
 	// Subscribe to ticker for bid/ask updates
-	log!("Subscribing to ticker for {}...", instrument_id);
+	log!("Subscribing to ticker for {instrument_id}...");
 	match market_client.subscribe_ticker(instrument_id).await {
 		Ok(()) => log!("Successfully subscribed to ticker"),
 		Err(e) => {
-			log!("Failed to subscribe to ticker: {:?}", e);
-			bail!("Failed to subscribe to ticker: {}", e);
+			log!("Failed to subscribe to ticker: {e:?}");
+			bail!("Failed to subscribe to ticker: {e}");
 		}
 	}
 
@@ -193,20 +159,20 @@ pub async fn execute_ws_chase_limit(
 			let improved_price = initial_ask - price_tick;
 			if improved_price <= initial_bid { initial_ask } else { improved_price }
 		}
-		_ => bail!("Invalid side: {}", side),
+		_ => bail!("Invalid side: {side}"),
 	};
 
-	log!("Calculated initial limit price: {} (bid={}, ask={})", initial_limit_price, initial_bid, initial_ask);
+	log!("Calculated initial limit price: {initial_limit_price} (bid={initial_bid}, ask={initial_ask})");
 
 	// Place initial order immediately
 	// Note: order_link_id must be <= 45 chars. UUID is 32 hex chars (without hyphens), so "c-{}" = 34 chars
 	let short_uuid = uuid::Uuid::new_v4().simple().to_string();
-	let order_link_id = format!("c-{}", short_uuid);
+	let order_link_id = format!("c-{short_uuid}");
 	let client_order_id = ClientOrderId::from(order_link_id.as_str());
 	let bybit_side = match side {
 		"Buy" => BybitOrderSide::Buy,
 		"Sell" => BybitOrderSide::Sell,
-		_ => bail!("Invalid side: {}", side),
+		_ => bail!("Invalid side: {side}"),
 	};
 
 	let initial_order = BybitWsPlaceOrderParams {
@@ -238,12 +204,12 @@ pub async fn execute_ws_chase_limit(
 		tp_limit_price: None,
 	};
 
-	log!("Placing initial order: {} {} @ {}", side, target_qty, initial_limit_price);
+	log!("Placing initial order: {side} {target_qty} @ {initial_limit_price}");
 	match trade_client.place_order(initial_order, client_order_id, trader_id, strategy_id, instrument_id).await {
 		Ok(()) => log!("Initial order request sent successfully"),
 		Err(e) => {
-			log!("Failed to place initial order: {:?}", e);
-			bail!("Failed to place initial order: {}", e);
+			log!("Failed to place initial order: {e:?}");
+			bail!("Failed to place initial order: {e}");
 		}
 	}
 
@@ -258,12 +224,13 @@ pub async fn execute_ws_chase_limit(
 	log!("trade_client subscription_count: {}", trade_client.subscription_count());
 	log!("market_client subscription_count: {}", market_client.subscription_count());
 
+	//LOOP: very hacky bad old implementation. Will be deprecated in favor of proper implementation through protocol primitives
 	loop {
 		iteration += 1;
 
 		// Log every iteration for debugging
 		if iteration <= 5 || iteration % 10 == 0 {
-			log!("[{}] Polling streams... order_placed={}", iteration, order_placed);
+			log!("[{iteration}] Polling streams... order_placed={order_placed}");
 		}
 
 		// Check if duration has expired
@@ -285,14 +252,14 @@ pub async fn execute_ws_chase_limit(
 						.await
 					{
 						Ok(()) => log!("Cancelled existing order"),
-						Err(e) => log!("Failed to cancel order (may already be filled): {}", e),
+						Err(e) => log!("Failed to cancel order (may already be filled): {e}"),
 					}
 				}
 
 				// Place market order for remaining quantity
 				let remaining_qty = target_qty - filled_qty;
 				if remaining_qty > 0.0 {
-					let final_order_link_id = format!("{}-final", order_link_id);
+					let final_order_link_id = format!("{order_link_id}-final");
 					let final_client_order_id = ClientOrderId::from(final_order_link_id.as_str());
 					let market_params = BybitWsPlaceOrderParams {
 						category: BybitProductType::Linear,
@@ -324,8 +291,8 @@ pub async fn execute_ws_chase_limit(
 					};
 
 					match trade_client.place_order(market_params, final_client_order_id, trader_id, strategy_id, instrument_id).await {
-						Ok(()) => log!("Final market order placed for {}", remaining_qty),
-						Err(e) => log!("Failed to place final market order: {}", e),
+						Ok(()) => log!("Final market order placed for {remaining_qty}"),
+						Err(e) => log!("Failed to place final market order: {e}"),
 					}
 
 					// Wait for final market order fill before exiting
@@ -607,6 +574,39 @@ pub async fn execute_ws_chase_limit(
 	// Suppress unused variable warning
 	let _ = current_order_price;
 
-	log!("Chase-limit execution completed: filled {} out of {}", filled_qty, target_qty);
+	log!("Chase-limit execution completed: filled {filled_qty} out of {target_qty}");
 	Ok(filled_qty)
+}
+/// Format quantity string based on step size to avoid "Qty invalid" errors
+fn format_qty(qty: f64, qty_step: f64) -> String {
+	if qty_step >= 1.0 {
+		format!("{qty:.0}")
+	} else if qty_step >= 0.1 {
+		format!("{qty:.1}")
+	} else if qty_step >= 0.01 {
+		format!("{qty:.2}")
+	} else if qty_step >= 0.001 {
+		format!("{qty:.3}")
+	} else if qty_step >= 0.0001 {
+		format!("{qty:.4}")
+	} else {
+		format!("{qty:.6}")
+	}
+}
+
+/// Format price string based on tick size
+fn format_price(price: f64, tick_size: f64) -> String {
+	if tick_size >= 1.0 {
+		format!("{price:.0}")
+	} else if tick_size >= 0.1 {
+		format!("{price:.1}")
+	} else if tick_size >= 0.01 {
+		format!("{price:.2}")
+	} else if tick_size >= 0.001 {
+		format!("{price:.3}")
+	} else if tick_size >= 0.0001 {
+		format!("{price:.4}")
+	} else {
+		format!("{price:.6}")
+	}
 }

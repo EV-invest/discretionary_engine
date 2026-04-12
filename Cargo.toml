@@ -18,20 +18,71 @@ undocumented_unsafe_blocks = "warn"
 tabs_in_doc_comments = "allow"
 
 [workspace.dependencies]
-clap = { version = "^4.5.53", features = ["derive"] }
+ahash = "0.8.12"
+arc-swap = "1"
+chrono = "0.4.44"
+clap = { version = "^4.6.0", features = ["derive", "env"] }
+clap_complete = "4.6.0"
 color-eyre = "^0.6.5"
-insta = { version = "1.45.0", features = ["json"] }
-jiff = "^0.2.16"
+config = "0.15.22"
+de_core = { path = "discretionary_engine_core" }
+de_data = { path = "discretionary_engine_data" }
+de_exec = { path = "discretionary_engine_exec" }
+de_macros = { path = "discretionary_engine_macros" }
+de_risk = { path = "discretionary_engine_risk" }
+de_routing = { path = "discretionary_engine_routing" }
+de_strategy = { path = "discretionary_engine_strategy" }
+derive-new = "0.7.0"
+derive_more = { version = "^2.1.1", features = ["from_str", "display", "from", "deref", "deref_mut"] }
+dirs = "6.0"
+eyre = "0.6.12"
+function_name = "0.3.0"
+futures-util = "0.3.32"
+hex = "0.4.3"
+hmac = "0.13.0"
+indicatif = "0.17"
+insta = { version = "1.46.3", features = ["json"] }
+jiff = "^0.2.23"
+lazy_static = "1.5.0"
+miette = { version = "7.6.0", features = ["fancy", "serde", "syntect-highlighter"] }
+nautilus-bybit = { path = "libs/nautilus_trader/crates/adapters/bybit", default-features = false }
+nautilus-model = { path = "libs/nautilus_trader/crates/model" }
+parking_lot = "0.12"
+quote = "1.0.42"
+rand = "0.10.0"
+redis = "1.0"
+reqwest = "0.13.2"
 secrecy = { version = "0.10.3", features = ["serde"] }
+serde = { version = "^1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+serde_path_to_error = "0.1.20"
+serde_urlencoded = "0.7.1"
+serde_with = "3.18.0"
+sha2 = "0.11.0"
+smart-default = "^0.7.1"
 snapshot_fonts = "1.2.0"
-strum = { version = "0.27", features = ["derive"] }
-tracing = { version = "^0.1.41", features = ["log", "std", "async-await"] }
-v_exchanges = { version = "^0.16.3", features = ["full"] }
-v_utils = { version = "2.15.9", features = ["full"] }
+strum = { version = "0.28", features = ["derive"] }
+syn = "2.0.110"
+thiserror = { version = "^2.0.18" }
+tokio = "1.51.0"
+tokio-stream = "0.1"
+tokio-tungstenite = "0.29.0"
+tracing = { version = "^0.1.44", features = ["log", "std", "async-await"] }
+tracing-subscriber = "0.3.22"
+trybuild = "1.0.114"
+url = "2.5.8"
+ustr = "1.1.0"
+uuid = { version = "^1.22.0", features = ["serde", "v4", "v7", "v8"] }
+v_exchanges = { version = "^0.17.0", features = ["full"] }
+v_utils = { version = "2.15.31", features = ["full"] }
 
-#[patch.crates-io]
-#v_utils = { path = "../v_utils/v_utils" }
-#v_utils_macros = { path = "../v_utils/v_utils_macros" }
+#dbg: \
+[patch.crates-io]
+v_exchanges = { path = "../v_exchanges/v_exchanges" }
+v_exchanges_adapters = { path = "../v_exchanges/v_exchanges_adapters" }
+v_exchanges_api_generics = { path = "../v_exchanges/v_exchanges_api_generics" }
+v_utils = { path = "../v_utils/v_utils" }
+v_utils_macros = { path = "../v_utils/v_utils_macros" }
 
 [profile.dev]
 # codegen-backend = "cranelift"  # disabled due to aws-lc-rs incompatibility

@@ -1,0 +1,19 @@
+[package]
+name = "de_data"
+version = "0.1.0"
+edition = "2024"
+description = "Shared market data infrastructure for discretionary_engine"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+ahash = { workspace = true, features = ["serde"] }
+arc-swap.workspace = true
+de_core.workspace = true
+futures-util.workspace = true
+tokio = { workspace = true, features = ["sync", "rt"] }
+tracing.workspace = true
+v_exchanges.workspace = true
+v_utils.workspace = true
+
+[lints]
+workspace = true

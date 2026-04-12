@@ -1,0 +1,37 @@
+[package]
+name = "de_routing"
+version = "0.1.0"
+edition = "2024"
+
+license = "MIT"
+documentation = "https://docs.rs/discretionary_engine_routing"
+repository = "https://github.com/valeratrades/discretionary_engine/tree/master/discretionary_engine_routing"
+homepage = "https://github.com/valeratrades/discretionary_engine"
+authors = ["valeratrades"]
+description = "Route and reason about incoming detla change intents"
+
+[package.metadata.docs.rs]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+
+[dependencies]
+ahash = { workspace = true, features = ["serde"] }
+clap.workspace = true
+color-eyre.workspace = true
+de_core.workspace = true
+de_data.workspace = true
+derive_more.workspace = true
+futures-util.workspace = true
+miette.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+tokio-stream.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+v_exchanges.workspace = true
+v_utils.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+
+[lints]
+workspace = true

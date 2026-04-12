@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use ahash::AHashMap;
 use color_eyre::eyre::Result;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
@@ -30,7 +31,7 @@ impl BinanceExchangeFutures {
 	#[instrument]
 	pub async fn init(_live_settings: Arc<LiveSettings>) -> Result<Self> {
 		let url = Self::url().to_string();
-		let r = unsigned_request(Method::GET, &url, HashMap::new()).await?;
+		let r = unsigned_request(Method::GET, &url, AHashMap::default()).await?;
 		let binance_exchange_futures: Self = deser_reqwest(r).await?;
 		Ok(binance_exchange_futures)
 	}
@@ -80,36 +81,6 @@ pub struct RateLimit {
 // 	multiplierDown: String,
 // 	multiplierDecimal: u32,
 //}
-
-#[serde_as]
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FuturesSymbol {
-	pub symbol: String,
-	pub pair: String,
-	pub contract_type: String,
-	pub delivery_date: i64,
-	pub onboard_date: i64,
-	pub status: String,
-	pub base_asset: String,
-	pub quote_asset: String,
-	pub margin_asset: String,
-	pub price_precision: u32,
-	pub quantity_precision: u32,
-	pub base_asset_precision: u32,
-	pub quote_precision: u32,
-	pub underlying_type: String,
-	pub underlying_sub_type: Vec<String>,
-	pub settle_plan: Option<u32>,
-	pub trigger_protect: String,
-	pub filters: Vec<Value>,
-	pub order_type: Option<Vec<String>>,
-	pub time_in_force: Vec<String>,
-	#[serde_as(as = "DisplayFromStr")]
-	pub liquidation_fee: f64,
-	#[serde_as(as = "DisplayFromStr")]
-	pub market_take_bound: f64,
-}
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(tag = "filterType")]
@@ -196,6 +167,35 @@ pub struct PercentPriceFilter {
 	pub multiplier_decimal: u8,
 }
 
+#[serde_as]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FuturesSymbol {
+	pub symbol: String,
+	pub pair: String,
+	pub contract_type: String,
+	pub delivery_date: i64,
+	pub onboard_date: i64,
+	pub status: String,
+	pub base_asset: String,
+	pub quote_asset: String,
+	pub margin_asset: String,
+	pub price_precision: u32,
+	pub quantity_precision: u32,
+	pub base_asset_precision: u32,
+	pub quote_precision: u32,
+	pub underlying_type: String,
+	pub underlying_sub_type: Vec<String>,
+	pub settle_plan: Option<u32>,
+	pub trigger_protect: String,
+	pub filters: Vec<Value>,
+	pub order_type: Option<Vec<String>>,
+	pub time_in_force: Vec<String>,
+	#[serde_as(as = "DisplayFromStr")]
+	pub liquidation_fee: f64,
+	#[serde_as(as = "DisplayFromStr")]
+	pub market_take_bound: f64,
+}
 impl FuturesSymbol {
 	fn get_filter<T: for<'de> Deserialize<'de>>(&self, filter_type: &str) -> Option<T> {
 		self.filters.iter().find_map(|filter| {

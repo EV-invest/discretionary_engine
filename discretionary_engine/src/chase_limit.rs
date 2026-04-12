@@ -23,7 +23,6 @@ use v_utils::{log, trades::Timeframe};
 /// * `symbol` - Trading symbol (Bybit format, e.g., "BTCUSDT")
 /// * `side` - Order side ("Buy" or "Sell")
 /// * `target_qty` - Total quantity to execute
-/// * `qty_step` - Minimum quantity increment for the instrument
 /// * `price_tick` - Minimum price increment for the instrument
 /// * `duration` - Optional duration to spread the execution over
 pub async fn execute_chase_limit(
@@ -32,18 +31,17 @@ pub async fn execute_chase_limit(
 	symbol: &str,
 	side: &str,
 	target_qty: f64,
-	qty_step: f64,
 	price_tick: f64,
 	duration: Option<Timeframe>,
 ) -> Result<f64> {
-	log!("Starting chase-limit execution for {} {} {}", side, target_qty, symbol);
+	log!("Starting chase-limit execution for {side} {target_qty} {symbol}");
 
 	// Calculate execution parameters based on duration
 	let (sleep_interval, end_time) = if let Some(duration_tf) = duration {
 		let total_duration_ms = duration_tf.0;
 		let update_interval_ms = 1000; // Check/update every 1 second
 		let end_time = std::time::Instant::now() + Duration::from_millis(total_duration_ms);
-		log!("Patient execution over {:?}: update_interval={}ms", duration_tf, update_interval_ms);
+		log!("Patient execution over {duration_tf:?}: update_interval={update_interval_ms}ms");
 		(Duration::from_millis(update_interval_ms), Some(end_time))
 	} else {
 		// Aggressive execution: update quickly
@@ -56,6 +54,7 @@ pub async fn execute_chase_limit(
 	let mut last_order_price: Option<f64> = None;
 	let mut iteration = 0;
 
+	//LOOP: very bad interface from the old implementation. Shouldn't be done this way, - will transfer to implementation through protocol primitives
 	loop {
 		iteration += 1;
 
@@ -112,7 +111,7 @@ pub async fn execute_chase_limit(
 			.await
 			.context("Failed to fetch ticker data")?;
 
-		let ticker = ticker_response.result.list.get(0).ok_or_else(|| color_eyre::eyre::eyre!("No ticker data found for {}", symbol))?;
+		let ticker = ticker_response.result.list.get(0).ok_or_else(|| color_eyre::eyre::eyre!("No ticker data found for {symbol}"))?;
 
 		let bid_price: f64 = ticker.bid1_price.parse().context("Failed to parse bid price")?;
 		let ask_price: f64 = ticker.ask1_price.parse().context("Failed to parse ask price")?;
@@ -131,10 +130,10 @@ pub async fn execute_chase_limit(
 				// Don't cross the spread
 				if improved_price <= bid_price { ask_price } else { improved_price }
 			}
-			_ => bail!("Invalid side: {}", side),
+			_ => bail!("Invalid side: {side}"),
 		};
 
-		info!("[{}] Market: bid={}, ask={}, target {} limit @ {}", iteration, bid_price, ask_price, side, limit_price);
+		info!("[{iteration}] Market: bid={bid_price}, ask={ask_price}, target {side} limit @ {limit_price}");
 
 		// Check if we should update the order
 		// Only update if price changed significantly (to avoid unnecessary cancel-replace)
@@ -146,7 +145,7 @@ pub async fn execute_chase_limit(
 		if should_update {
 			// Cancel existing order if there is one
 			if let Some(ref old_order_link_id) = current_order_link_id {
-				log!("[{}] Cancelling previous order to update price", iteration);
+				log!("[{iteration}] Cancelling previous order to update price");
 
 				let cancel_request = serde_json::json!({
 					"category": "linear",
@@ -162,10 +161,10 @@ pub async fn execute_chase_limit(
 			}
 
 			// Create new orderLinkId for this order
-			let new_order_link_id = format!("{}-{}", base_order_link_id, iteration);
+			let new_order_link_id = format!("{base_order_link_id}-{iteration}");
 
 			// Place new order at updated price
-			log!("[{}] Placing {} limit order: {} @ {}", iteration, side, target_qty, limit_price);
+			log!("[{iteration}] Placing {side} limit order: {target_qty} @ {limit_price}");
 
 			let order_request = serde_json::json!({
 				"category": "linear",
@@ -183,15 +182,15 @@ pub async fn execute_chase_limit(
 			if order_response.ret_code == 0 {
 				current_order_link_id = Some(new_order_link_id);
 				last_order_price = Some(limit_price);
-				info!("[{}] Order placed successfully", iteration);
+				info!("[{iteration}] Order placed successfully");
 			} else if order_response.ret_code == 10001 || order_response.ret_msg.contains("post only") || order_response.ret_msg.contains("would cross") {
-				info!("[{}] PostOnly rejected (would cross spread): {}, will retry", iteration, order_response.ret_msg);
+				info!("[{iteration}] PostOnly rejected (would cross spread): {}, will retry", order_response.ret_msg);
 				// Don't update last_order_price or current_order_link_id, will retry next iteration
 			} else {
 				log!("Order placement warning: {} (code: {})", order_response.ret_msg, order_response.ret_code);
 			}
 		} else {
-			info!("[{}] Price unchanged, keeping order at {}", iteration, last_order_price.unwrap_or(0.0));
+			info!("[{iteration}] Price unchanged, keeping order at {}", last_order_price.unwrap_or(0.0));
 		}
 
 		// Sleep before next iteration
@@ -204,6 +203,6 @@ pub async fn execute_chase_limit(
 		}
 	}
 
-	log!("Chase-limit execution completed for {} {}", target_qty, symbol);
+	log!("Chase-limit execution completed for {target_qty} {symbol}");
 	Ok(target_qty)
 }

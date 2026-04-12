@@ -1,22 +1,24 @@
-use std::{
-	collections::HashMap,
-	ops::{Add, Sub},
-	str::FromStr,
-};
+use std::ops::{Add, Sub};
 
 use clap::ValueEnum;
-use color_eyre::eyre::{Result, bail, eyre};
+use color_eyre::eyre::{Result, bail};
+#[cfg(test)]
+use insta as _;
 use jiff::{Span, Timestamp, Unit};
-use secrecy::SecretString;
+use miette as _;
 use strum::{EnumCount, EnumIter, IntoEnumIterator};
+use tokio as _;
 use tracing::debug;
-use v_exchanges::core::{Exchange, ExchangeName, Instrument, Symbol};
+use tracing_subscriber as _;
+use v_exchanges::core::{Exchange, Symbol};
 use v_utils::{Percent, percent::PercentU, trades::*};
 
+pub mod balance;
+pub mod config;
 pub mod risk_layers;
 pub use risk_layers::{FromPhone, LostLastTrade, RiskLayer, StopLossProximity, apply_risk_layers};
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, ValueEnum)]
+#[derive(Clone, Copy, Debug, Default, Eq, Ord, PartialEq, PartialOrd, ValueEnum)]
 /// Quality of the trade setup
 ///
 /// NB: can't choose based on what you feel like, - consult with exact criteria provided for each
@@ -27,15 +29,21 @@ pub enum Quality {
 	/// clear inefficiency AND entry within a clearly defined strategy AND strategy is historically profitable
 	B,
 	/// (entry within a clearly defined strategy AND strategy is historically profitable) OR (clear inefficiency)
+	///
+	/// NB: tends to be the most dangerous one. Already large enough to be felt, and much more common than the higher tiers; which leads to it ending up dominating %volume. And it's really tricky to trade this profitably consistently. In reality ends up blowing up risk while adding little (if anything) to flat EV.
+	/// HINT: One of the telltale signs of most problematic types of this tier, is feeling that "it could evolve into something great". At higher tiers you usually get a feeling that formation is "complete" (even if scary), while large part of the reason for overtrading of `C` situaions, is hope and FOMO.
 	C,
 	/// looks good
 	D,
 	/// random test (uses exchange min size)
+	#[default]
 	T,
 }
 
 /// Risk tiers used for actual sizing. Rather deterministic rules for mapping to exact value from having this selected.
 /// Only deterministic quantities like fees or expected slippage are applied from here on, to get the final size submitted to the execution engine.
+///
+/// Basically just [bucketing concept from poker](https://blog.gtowizard.com/the-magic-of-equity-buckets/)
 #[derive(Clone, Copy, Debug, EnumCount, EnumIter, Eq, Ord, PartialEq, PartialOrd)]
 pub enum RiskTier {
 	A,
@@ -107,59 +115,6 @@ impl From<Quality> for RiskTier {
 	}
 }
 
-/// Exchange configuration for risk module
-#[derive(Clone, Debug)]
-pub struct ExchangeAuth {
-	pub api_pubkey: String,
-	pub api_secret: SecretString,
-	pub passphrase: Option<SecretString>,
-}
-
-pub fn initialize_exchanges(exchanges_config: &HashMap<String, ExchangeAuth>) -> Result<Vec<Box<dyn Exchange>>> {
-	let mut exchanges: Vec<Box<dyn Exchange>> = Vec::new();
-	for (name, exchange_config) in exchanges_config {
-		let exchange_name = ExchangeName::from_str(name)?;
-		let mut exchange = exchange_name.init_client();
-		exchange.auth(exchange_config.api_pubkey.clone(), exchange_config.api_secret.clone());
-		exchange.set_max_tries(3);
-		exchange.set_recv_window(std::time::Duration::from_secs(15));
-
-		// special case: KuCoin requires a passphrase
-		if exchange_name == ExchangeName::Kucoin {
-			let passphrase = exchange_config.passphrase.clone().ok_or_else(|| eyre!("Kucoin exchange requires passphrase in config"))?;
-			exchange.update_default_option(v_exchanges::kucoin::KucoinOption::Passphrase(passphrase));
-		}
-
-		exchanges.push(exchange);
-	}
-	Ok(exchanges)
-}
-
-pub async fn collect_balances(exchanges: &[Box<dyn Exchange>]) -> Result<HashMap<String, Usd>> {
-	let mut balances = HashMap::new();
-	for exchange in exchanges {
-		let balance = exchange.balances(Instrument::Perp, None).await.unwrap();
-		let name = exchange.name().to_string();
-		tracing::debug!("Per-Exchange balances: {name}: {balance:?}");
-		balances.insert(name, balance.total);
-	}
-	Ok(balances)
-}
-
-pub fn get_total_balance(balances: &HashMap<String, Usd>, other_balances: Option<f64>) -> Usd {
-	let mut total_balance = Usd(0.);
-	for balance in balances.values() {
-		total_balance += *balance;
-	}
-
-	// Add other balances if configured
-	if let Some(other) = other_balances {
-		total_balance = Usd(*total_balance + other);
-	}
-
-	total_balance
-}
-
 /// Returns EMA over previous 10 last moves of the same distance.
 pub async fn ema_prev_times_for_same_move(exchange: &dyn Exchange, symbol: Symbol, price: f64, sl_percent: Percent) -> Result<Span> {
 	static RUN_TIMES: usize = 10;
@@ -228,7 +183,7 @@ pub async fn ema_prev_times_for_same_move(exchange: &dyn Exchange, symbol: Symbo
 		.fold(0_i64, |acc: i64, (i, x): (usize, &Span)| acc + x.total(Unit::Second).unwrap() as i64 * (i as i64 + 1)) as f64
 		/ ((times.len() + 1) as f64 * times.len() as f64 / 2.0);
 	debug!(?ema);
-	Ok(Span::new().seconds(ema as i64))
+	Ok(Span::default().seconds(ema as i64))
 }
 
 /// Apply rounding bias to skew the result towards rounder numbers.
@@ -276,7 +231,7 @@ mod tests {
 	#[test]
 	fn test_apply_round_bias() {
 		// Test with 1% bias (default)
-		let bias = PercentU::new(0.01).unwrap();
+		let bias = PercentU::try_new(0.01).unwrap();
 
 		// 1234.5 should move towards 1200 (closer round number)
 		let result = apply_round_bias(1234.5, bias);
@@ -287,7 +242,7 @@ mod tests {
 		assert!((result - 1250.0).abs() < 1.0, "Expected value close to 1250, got {result}");
 
 		// Test with higher bias (10%)
-		let bias = PercentU::new(0.10).unwrap();
+		let bias = PercentU::try_new(0.10).unwrap();
 		let result = apply_round_bias(1234.5, bias);
 		assert!(result < 1234.5 && result > 1230.0, "Expected larger shift with 10% bias, got {result}");
 

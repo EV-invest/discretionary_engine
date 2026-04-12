@@ -1,0 +1,12 @@
+// Protocol contract specification traceability
+// Run: `tracey matrix` to see coverage
+// Run: `tracey impact <rule>` to see what code implements a rule
+
+spec {
+    name "protocol"
+    rules_file "../../docs/spec/_rules.json"
+    include "discretionary_engine/**/*.rs"
+    include "discretionary_engine_*/**/*.rs"
+    exclude "**/target/**"
+    exclude "**/libs/**"
+}

@@ -1,0 +1,23 @@
+[package]
+name = "de_exec"
+version = "0.1.0"
+edition = "2024"
+
+license = "MIT"
+documentation = "https://docs.rs/discretionary_engine_exec"
+repository = "https://github.com/valeratrades/discretionary_engine/tree/master/discretionary_engine_exec"
+homepage = "https://github.com/valeratrades/discretionary_engine"
+authors = ["valeratrades"]
+description = "Execution layer: tracks live order state for ExchangeOrders"
+
+[package.metadata.docs.rs]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+
+[dependencies]
+derive-new.workspace = true
+derive_more.workspace = true
+strum.workspace = true
+v_exchanges.workspace = true
+
+[lints]
+workspace = true

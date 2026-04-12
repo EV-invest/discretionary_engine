@@ -1,15 +1,73 @@
 #![allow(non_snake_case, dead_code)]
 use tracing::{info, trace};
+type HmacSha256 = Hmac<Sha256>;
 pub mod info;
+impl BinanceExchange {
+	#[instrument(skip_all)]
+	pub async fn init(live_settings: Arc<LiveSettings>) -> Result<Self> {
+		let binance_futures_info = BinanceExchangeFutures::init(live_settings.clone()).await?;
+		Ok(Self { binance_futures_info })
+	}
+
+	// Finds all pairs with the given base asset, returns absolute minimal order trade size for it.
+	//TODO!!: switch to requesting full orders. This is not general, so for limit and stop market orders must know the offset to determine the accurate min_qty.
+	#[instrument(skip(self))]
+	pub fn min_qties_batch(&self, base_asset: &str, ordertypes: &[ConceptualOrderType]) -> Vec<f64> {
+		assert_ne!(*self, Self::default());
+
+		let mut min_qties = Vec::default();
+		for s in &self.binance_futures_info.symbols {
+			if s.base_asset == *base_asset {
+				let mut all_min_notionals_for_asset = Vec::default();
+				for ordertype in ordertypes {
+					all_min_notionals_for_asset.push(s.min_trade_qty_notional(ordertype));
+				}
+				//- other sub-markets
+				assert!(!all_min_notionals_for_asset.is_empty(), "No such asset found in the exchange info");
+				min_qties.push(all_min_notionals_for_asset.iter().sum());
+			}
+		}
+
+		min_qties
+	}
+
+	#[instrument(skip(self))]
+	pub fn min_qty_any_ordertype(&self, base_asset: &str) -> f64 {
+		let mut on_different_pairs = Vec::default();
+		for s in &self.binance_futures_info.symbols {
+			if s.base_asset == *base_asset {
+				//HACK: just assumes that there is no way to hit a smaller min_qty limit by placing a limit order, no matter at what offset to the price.
+				on_different_pairs.push(s.min_trade_qty_notional(&ConceptualOrderType::Market(ConceptualMarket::new(Percent(1.0)))));
+			}
+		}
+		on_different_pairs.iter().sum()
+	}
+
+	#[instrument(skip(self))]
+	pub fn pair(&self, base_asset: &str, quote_asset: &str) -> Option<&info::FuturesSymbol> {
+		//? Should I cast `to_uppercase()`?
+		self.binance_futures_info.symbols.iter().find(|s| s.base_asset == base_asset && s.quote_asset == quote_asset)
+	}
+}
+
+impl FuturesPositionResponse {
+	pub fn get_url() -> Url {
+		let base_url = Market::BinanceFutures.get_base_url();
+		// the way this works - is we sumbir "New" and "Query" to the same endpoint. The action is then determined by the presence of the orderId parameter.
+		base_url.join("/fapi/v1/order").unwrap()
+	}
+}
+
 mod orders;
 use std::{
 	collections::HashMap,
 	sync::{Arc, RwLock},
 };
 
+use ahash::AHashMap;
 use chrono::Utc;
 use color_eyre::eyre::{Result, bail};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use info::BinanceExchangeFutures;
 pub use orders::*;
 use rand::{SeedableRng, rngs::SmallRng, seq::SliceRandom};
@@ -41,125 +99,288 @@ use crate::{
 	exchange_apis::{Market, order_types::Order},
 	utils::{deser_reqwest, report_connection_problem, unexpected_response_str},
 };
-type HmacSha256 = Hmac<Sha256>;
+
+#[serde_as]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FuturesPositionResponse {
+	pub client_order_id: Option<String>,
+	pub cum_qty: Option<String>, // weird field, included at random (json api things)
+	pub cum_quote: String,       // total filled quote asset
+	#[serde_as(as = "DisplayFromStr")]
+	pub executed_qty: f64, // total filled base asset
+	pub order_id: i64,
+	pub avg_price: Option<String>,
+	pub orig_qty: String,
+	pub price: String,
+	pub reduce_only: Value,
+	pub side: String,
+	pub position_side: Option<String>, // only sent when in hedge mode
+	pub status: OrderStatus,
+	pub stop_price: String,
+	pub close_position: Value,
+	pub symbol: String,
+	pub time_in_force: String,
+	pub r#type: String,
+	pub orig_type: String,
+	pub activate_price: Option<f64>, // only returned on TRAILING_STOP_MARKET order
+	pub price_rate: Option<f64>,     // only returned on TRAILING_STOP_MARKET order
+	pub update_time: i64,
+	pub working_type: Option<String>, // no clue what this is
+	pub price_protect: bool,
+	pub price_match: Option<String>, // huh
+	pub self_trade_prevention_mode: Option<String>,
+	pub good_till_date: Option<i64>,
+}
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub struct BinanceExchange {
-	pub binance_futures_info: BinanceExchangeFutures,
+pub enum OrderStatus {
+	#[default]
+	#[serde(rename = "NEW")]
+	New,
+	#[serde(rename = "PARTIALLY_FILLED")]
+	PartiallyFilled,
+	#[serde(rename = "FILLED")]
+	Filled,
+	#[serde(rename = "CANCELED")]
+	Canceled,
+	#[serde(rename = "EXPIRED")]
+	Expired,
+	#[serde(rename = "EXPIRED_IN_MATCH")]
+	ExpiredInMatch,
 }
-impl BinanceExchange {
-	#[instrument(skip_all)]
-	pub async fn init(live_settings: Arc<LiveSettings>) -> Result<Self> {
-		let binance_futures_info = BinanceExchangeFutures::init(live_settings.clone()).await?;
-		Ok(Self { binance_futures_info })
-	}
 
-	// Finds all pairs with the given base asset, returns absolute minimal order trade size for it.
-	//TODO!!: switch to requesting full orders. This is not general, so for limit and stop market orders must know the offset to determine the accurate min_qty.
-	#[instrument(skip(self))]
-	pub fn min_qties_batch(&self, base_asset: &str, ordertypes: &[ConceptualOrderType]) -> Vec<f64> {
-		assert_ne!(*self, Self::default());
+/// NB: must be communicating back to the hub, can't shortcut and talk back directly to positions.
+#[instrument(skip_all)]
+pub async fn binance_runtime(
+	live_settings: Arc<LiveSettings>,
+	parent_js: &mut JoinSet<()>,
+	hub_callback: mpsc::Sender<ExchangeToHub>,
+	mut hub_rx: watch::Receiver<HubToExchange>,
+	binance_exchange_arc: Arc<RwLock<BinanceExchange>>,
+) {
+	debug!("Binance_runtime started");
+	let mut last_reported_fill_key = Uuid::default();
+	let currently_deployed: Arc<RwLock<Vec<BinanceOrder>>> = Arc::new(RwLock::new(Vec::default()));
 
-		let mut min_qties = Vec::new();
-		for s in &self.binance_futures_info.symbols {
-			if s.base_asset == *base_asset {
-				let mut all_min_notionals_for_asset = Vec::new();
-				for ordertype in ordertypes {
-					all_min_notionals_for_asset.push(s.min_trade_qty_notional(ordertype));
+	use secrecy::ExposeSecret;
+	use v_exchanges::ExchangeName;
+
+	let config = live_settings.config().expect("Failed to load config");
+	let binance_config = config.get_exchange(ExchangeName::Binance).expect("Binance exchange config not found");
+
+	let pubkey = binance_config.api_pubkey.clone();
+	let secret = binance_config.api_secret.expose_secret().to_string();
+
+	let (temp_fills_stack_tx, mut temp_fills_stack_rx) = tokio::sync::mpsc::channel(100);
+	let currently_deployed_clone = currently_deployed.clone();
+	let (pubkey_clone, secret_clone) = (pubkey.clone(), secret.clone());
+
+	// Polling orders for fills
+	parent_js.spawn(async move {
+		// TODO!!!: make into a websocket
+		//LOOP: want to pull the orders for entire lifetime of the runtime. Later will be a websocket.
+		loop {
+			tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+
+			debug!("gonna request deployed orders. Could hang here.");
+			let mut orders: Vec<_> = {
+				let currently_deployed_read = currently_deployed_clone.read().unwrap();
+				currently_deployed_read.iter().cloned().collect()
+			};
+			debug!("Local knowledge of deployed orders: {orders:?}");
+
+			// Will update to websocket later, so requesting the actual deployed orders is free.
+
+			// shuffle orders so there is no positional bias when polling
+			let mut rng = SmallRng::from_rng(&mut rand::rng());
+			orders.shuffle(&mut rng);
+
+			for (i, order) in orders.iter().enumerate() {
+				// // temp thing until I transfer to websocket
+				let r: FuturesPositionResponse = match poll_futures_order(&pubkey_clone, &secret_clone, order).await {
+					Ok(r) => r,
+					Err(e) => {
+						warn!("Error polling order: {e:?}, breaking to the outer order-pull task loop");
+						continue;
+					}
+				};
+				debug!("Successfully polled order: {r:?}");
+				//
+
+				// All other info except amount filled notional will only be relevant during trade's post-execution analysis.
+				if r.executed_qty != order.notional_filled {
+					{
+						currently_deployed_clone.write().unwrap()[i].notional_filled = r.executed_qty;
+					}
+					temp_fills_stack_tx.send(FillFromPolling::new(order.base_info.clone(), r)).await.unwrap();
 				}
-				//- other sub-markets
-				assert!(!all_min_notionals_for_asset.is_empty(), "No such asset found in the exchange info");
-				min_qties.push(all_min_notionals_for_asset.iter().sum());
 			}
 		}
+	});
 
-		min_qties
-	}
+	// Keeping Exchange info up-to-date
+	//TODO!: move to websockets, have them be right here.
+	let binance_exchange_arc_clone = binance_exchange_arc.clone();
+	let live_settings_clone = live_settings.clone();
+	parent_js.spawn(async move {
+		//LOOP: auxiliary information; can't halt the main loop
+		loop {
+			tokio::time::sleep(std::time::Duration::from_secs(15)).await;
 
-	#[instrument(skip(self))]
-	pub fn min_qty_any_ordertype(&self, base_asset: &str) -> f64 {
-		let mut on_different_pairs = Vec::new();
-		for s in &self.binance_futures_info.symbols {
-			if s.base_asset == *base_asset {
-				//HACK: just assumes that there is no way to hit a smaller min_qty limit by placing a limit order, no matter at what offset to the price.
-				on_different_pairs.push(s.min_trade_qty_notional(&ConceptualOrderType::Market(ConceptualMarket::new(Percent(1.0)))));
+			match BinanceExchangeFutures::init(live_settings_clone.clone()).await {
+				Ok(binance_exchange_futures_updated) => {
+					let mut binance_exchange_lock = binance_exchange_arc_clone.write().unwrap();
+					binance_exchange_lock.binance_futures_info = binance_exchange_futures_updated;
+				}
+				Err(e) => {
+					report_connection_problem(e.wrap_err("Error updating exchange info")).await;
+				}
 			}
 		}
-		on_different_pairs.iter().sum()
-	}
+	});
 
-	#[instrument(skip(self))]
-	pub fn pair(&self, base_asset: &str, quote_asset: &str) -> Option<&info::FuturesSymbol> {
-		//? Should I cast `to_uppercase()`?
-		self.binance_futures_info.symbols.iter().find(|s| s.base_asset == base_asset && s.quote_asset == quote_asset)
-	}
-}
-
-#[instrument(skip(key, secret))]
-pub async fn signed_request<S: AsRef<str>>(http_method: reqwest::Method, endpoint_str: &str, mut params: HashMap<&'static str, String>, key: S, secret: S) -> Result<reqwest::Response> {
-	let mut headers = HeaderMap::new();
-	headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json;charset=utf-8"));
-	headers.insert("X-MBX-APIKEY", HeaderValue::from_str(key.as_ref())?);
-	let client = reqwest::Client::builder().default_headers(headers).build()?;
-
-	let max_retries = 10;
-	let mut retry_delay = std::time::Duration::from_secs(1);
-	let mut encountered_cloudfront_error = false;
-
-	for attempt in 0..max_retries {
-		let time_ms = Utc::now().timestamp_millis();
-		params.insert("timestamp", format!("{}", time_ms));
-
-		let query_string = serde_urlencoded::to_string(&params)?;
-
-		let mut mac = HmacSha256::new_from_slice(secret.as_ref().as_bytes())?;
-		mac.update(query_string.as_bytes());
-		let mac_bytes = mac.finalize().into_bytes();
-		let signature = hex::encode(mac_bytes);
-
-		let url = format!("{}?{}&signature={}", endpoint_str, query_string, signature);
-		let r = client.request(http_method.clone(), &url).send().await?;
-
-		if r.status().is_success() {
-			return Ok(r);
+	//LOOP: Main loop of Binance exchange
+	loop {
+		//dbg
+		tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+		let now = chrono::Utc::now();
+		v_utils::print_rolling!("Binance runtime is still going: {}", now.format("%Y-%m-%d %H:%M:%S"));
+		select! {
+			Ok(_) = hub_rx.changed() => {
+				handle_hub_orders_update(&hub_rx, &mut last_reported_fill_key, &pubkey, &secret, currently_deployed.clone(), binance_exchange_arc.clone()).await;
+			},
+			_ = handle_temp_fills_stack(&mut temp_fills_stack_rx, &hub_callback, &mut last_reported_fill_key, currently_deployed.clone()) => {},
 		}
-
-		let error_html = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
-		if error_html.contains("<TITLE>ERROR: The request could not be satisfied</TITLE>") && attempt <= max_retries {
-			if !encountered_cloudfront_error {
-				tracing::warn!("Encountered CloudFront error. Oh boy, here we go again.");
-				encountered_cloudfront_error = true;
-			} else {
-				tracing::debug!("CloudFront error encountered again. Attempting retry #{attempt} in {retry_delay:?}");
-			}
-			tokio::time::sleep(retry_delay).await;
-			retry_delay += std::time::Duration::from_secs(1);
-			continue;
-		}
-
-		return Err(unexpected_response_str(&error_html));
 	}
-
-	bail!("Max retries reached. Request failed.")
 }
 
 #[instrument]
-pub async fn unsigned_request(http_method: reqwest::Method, endpoint_str: &str, params: HashMap<&str, String>) -> Result<reqwest::Response> {
-	debug!("requesting unsigned\nEndpoint: {}\nParams: {:?}", endpoint_str, &params);
-	let client = reqwest::Client::new();
-	let r = client.request(http_method, endpoint_str).query(&params).send().await?;
+pub async fn get_historic_klines(symbol: String, interval: String, limit: usize) -> Result<Vec<BinanceKline>> {
+	let base_url = Market::BinanceFutures.get_base_url();
+	let endpoint = base_url.join("/fapi/v1/klines")?;
 
-	if r.status().is_success() {
-		return Ok(r);
+	let params = vec![("symbol", symbol), ("interval", interval), ("limit", limit.to_string())];
+
+	let response = unsigned_request(Method::GET, endpoint.as_str(), params.into_iter().collect()).await?;
+
+	if !response.status().is_success() {
+		let error_body = response.text().await?;
+		bail!("Binance API error: {error_body}");
 	}
 
-	let error_html = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
-	Err(unexpected_response_str(&error_html))
+	let klines: Vec<BinanceKline> = response.json().await?;
+	Ok(klines)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BinanceKline {
+	open_time: i64,
+	open: String,
+	high: String,
+	low: String,
+	close: String,
+	volume: String,
+	close_time: i64,
+	quote_asset_volume: String,
+	number_of_trades: i64,
+	taker_buy_base_asset_volume: String,
+	taker_buy_quote_asset_volume: String,
+	ignore: String,
+}
+
+/// Normally, the only cases where the return from this poll is going to be _reacted_ to, is when response.status == OrderStatus::Filled or an error is returned.
+// TODO!: translate to websockets
+#[instrument(skip(key, secret))]
+pub async fn poll_futures_order<S: AsRef<str>>(key: S, secret: S, binance_order: &BinanceOrder) -> Result<FuturesPositionResponse> {
+	let url = FuturesPositionResponse::get_url();
+
+	let mut params = AHashMap::<&str, String>::default();
+	params.insert("symbol", binance_order.base_info.symbol.to_string());
+	params.insert("orderId", format!("{}", &binance_order.binance_id.unwrap()));
+	params.insert("recvWindow", "20000".to_owned()); // dbg currently they are having some issues with response speed
+	debug!("Polling order");
+
+	let r = signed_request(reqwest::Method::GET, url.as_str(), params, key, secret).await?;
+	let response: FuturesPositionResponse = deser_reqwest(r).await?;
+	Ok(response)
+}
+
+#[instrument(skip(key, secret, binance_exchange_arc))]
+pub async fn post_futures_order(key: String, secret: String, order: &Order<PositionOrderId>, binance_exchange_arc: Arc<RwLock<BinanceExchange>>) -> Result<BinanceOrder> {
+	debug!("Posting order");
+	let url = FuturesPositionResponse::get_url();
+
+	let mut binance_order = BinanceOrder::from_standard(order.clone(), binance_exchange_arc).await;
+	let mut params = binance_order.to_params();
+	params.insert("recvWindow", "60000".to_owned()); // dbg currently they/me are having some issues with response speed
+
+	let r = signed_request(reqwest::Method::POST, url.as_str(), params, key, secret).await?;
+	let response: FuturesPositionResponse = deser_reqwest(r).await?;
+	binance_order.binance_id = Some(response.order_id);
+	Ok(binance_order)
+}
+
+#[instrument(skip_all)]
+pub async fn get_futures_positions(key: String, secret: String) -> Result<AHashMap<String, f64>> {
+	let url = FuturesAllPositionsResponse::get_url();
+
+	let r = signed_request(Method::GET, url.as_str(), AHashMap::default(), key, secret).await?;
+	let positions: Vec<FuturesAllPositionsResponse> = deser_reqwest(r).await?;
+
+	let mut positions_map = AHashMap::<String, f64>::default();
+	for position in positions {
+		let symbol = position.symbol.clone();
+		let qty = position.positionAmt.parse::<f64>()?;
+		positions_map.entry(symbol).and_modify(|e| *e += qty).or_insert(qty);
+	}
+	Ok(positions_map)
+}
+
+#[instrument]
+pub async fn close_orders(key: String, secret: String, orders: &[BinanceOrder]) -> Result<()> {
+	let base_url = Market::BinanceFutures.get_base_url();
+	let url = base_url.join("/fapi/v1/order").unwrap();
+
+	let handles = orders.iter().map(|o| {
+		let mut params = AHashMap::<&str, String>::default();
+		params.insert("symbol", o.base_info.symbol.to_string());
+		params.insert("orderId", o.binance_id.unwrap().to_string());
+		params.insert("recvWindow", "60000".to_owned()); // dbg currently they are having some issues with response speed
+
+		signed_request(reqwest::Method::DELETE, url.as_str(), params, key.clone(), secret.clone())
+	});
+	for handle in handles {
+		let r = handle.await?;
+		let _: CancelOrdersResponse = deser_reqwest(r).await?;
+	}
+
+	Ok(())
+}
+
+#[instrument]
+pub async fn futures_price(asset: &str) -> Result<f64> {
+	debug!("requesting futures price"); //doesn't flush immediately, needs fixing to be useful
+	let symbol = crate::exchange_apis::Symbol {
+		base: asset.to_string(),
+		quote: "USDT".to_string(),
+		market: Market::BinanceFutures,
+	};
+	let base_url = Market::BinanceFutures.get_base_url();
+	let url = base_url.join("/fapi/v2/ticker/price")?;
+
+	let mut params = AHashMap::<&str, String>::default();
+	params.insert("symbol", symbol.to_string());
+
+	let r = unsigned_request(Method::GET, url.as_str(), params).await?;
+	let price_response: PriceResponse = deser_reqwest(r).await?;
+
+	Ok(price_response.price)
 }
 
 #[instrument(skip(key, secret))]
 pub async fn get_balance(key: String, secret: String, market: Market) -> Result<f64> {
-	let mut params = HashMap::<&str, String>::new();
+	let mut params = AHashMap::<&str, String>::default();
 	params.insert("recvWindow", "60000".to_owned());
 	match market {
 		Market::BinanceFutures => {
@@ -203,6 +424,74 @@ pub async fn get_balance(key: String, secret: String, market: Market) -> Result<
 	}
 }
 
+#[instrument]
+pub async fn unsigned_request(http_method: reqwest::Method, endpoint_str: &str, params: AHashMap<&str, String>) -> Result<reqwest::Response> {
+	debug!("requesting unsigned\nEndpoint: {endpoint_str}\nParams: {:?}", &params);
+	let client = reqwest::Client::default();
+	let _ = &params;
+	let r: reqwest::Response = client.request(http_method, endpoint_str).send().await?;
+
+	if r.status().is_success() {
+		return Ok(r);
+	}
+
+	let error_html: String = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
+	Err(unexpected_response_str(&error_html))
+}
+
+#[instrument(skip(key, secret))]
+pub async fn signed_request<S: AsRef<str>>(http_method: reqwest::Method, endpoint_str: &str, mut params: AHashMap<&'static str, String>, key: S, secret: S) -> Result<reqwest::Response> {
+	let mut headers = HeaderMap::default();
+	headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json;charset=utf-8"));
+	headers.insert("X-MBX-APIKEY", HeaderValue::from_str(key.as_ref())?);
+	let client = reqwest::Client::builder().default_headers(headers).build()?;
+
+	let max_retries = 10;
+	let mut retry_delay = std::time::Duration::from_secs(1);
+	let mut encountered_cloudfront_error = false;
+
+	for attempt in 0..max_retries {
+		let time_ms = Utc::now().timestamp_millis();
+		params.insert("timestamp", format!("{time_ms}"));
+
+		let query_string = serde_urlencoded::to_string(&params)?;
+
+		let mut mac = HmacSha256::new_from_slice(secret.as_ref().as_bytes())?;
+		mac.update(query_string.as_bytes());
+		let mac_bytes = mac.finalize().into_bytes();
+		let signature = hex::encode(mac_bytes);
+
+		let url = format!("{endpoint_str}?{query_string}&signature={signature}");
+		let r = client.request(http_method.clone(), &url).send().await?;
+
+		if r.status().is_success() {
+			return Ok(r);
+		}
+
+		let error_html: String = r.text().await?; // assume it's html because we couldn't parse it into serde_json::Value
+		if error_html.contains("<TITLE>ERROR: The request could not be satisfied</TITLE>") && attempt <= max_retries {
+			if !encountered_cloudfront_error {
+				tracing::warn!("Encountered CloudFront error. Oh boy, here we go again.");
+				encountered_cloudfront_error = true;
+			} else {
+				tracing::debug!("CloudFront error encountered again. Attempting retry #{attempt} in {retry_delay:?}");
+			}
+			tokio::time::sleep(retry_delay).await;
+			retry_delay += std::time::Duration::from_secs(1);
+			continue;
+		}
+
+		return Err(unexpected_response_str(&error_html));
+	}
+
+	bail!("Max retries reached. Request failed.")
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+pub struct BinanceExchange {
+	pub binance_futures_info: BinanceExchangeFutures,
+}
+
 #[serde_as]
 #[derive(Clone, Debug, Default, Deserialize, Serialize, derive_new::new)]
 struct PriceResponse {
@@ -212,110 +501,6 @@ struct PriceResponse {
 	time: i64,
 }
 
-#[instrument]
-pub async fn futures_price(asset: &str) -> Result<f64> {
-	debug!("requesting futures price"); //doesn't flush immediately, needs fixing to be useful
-	let symbol = crate::exchange_apis::Symbol {
-		base: asset.to_string(),
-		quote: "USDT".to_string(),
-		market: Market::BinanceFutures,
-	};
-	let base_url = Market::BinanceFutures.get_base_url();
-	let url = base_url.join("/fapi/v2/ticker/price")?;
-
-	let mut params = HashMap::<&str, String>::new();
-	params.insert("symbol", symbol.to_string());
-
-	let r = unsigned_request(Method::GET, url.as_str(), params).await?;
-	let price_response: PriceResponse = deser_reqwest(r).await?;
-
-	Ok(price_response.price)
-}
-
-#[instrument]
-pub async fn close_orders(key: String, secret: String, orders: &[BinanceOrder]) -> Result<()> {
-	let base_url = Market::BinanceFutures.get_base_url();
-	let url = base_url.join("/fapi/v1/order").unwrap();
-
-	let handles = orders.iter().map(|o| {
-		let mut params = HashMap::<&str, String>::new();
-		params.insert("symbol", o.base_info.symbol.to_string());
-		params.insert("orderId", o.binance_id.unwrap().to_string());
-		params.insert("recvWindow", "60000".to_owned()); // dbg currently they are having some issues with response speed
-
-		signed_request(reqwest::Method::DELETE, url.as_str(), params, key.clone(), secret.clone())
-	});
-	for handle in handles {
-		let r = handle.await?;
-		let _: CancelOrdersResponse = deser_reqwest(r).await?;
-	}
-
-	Ok(())
-}
-
-#[instrument(skip_all)]
-pub async fn get_futures_positions(key: String, secret: String) -> Result<HashMap<String, f64>> {
-	let url = FuturesAllPositionsResponse::get_url();
-
-	let r = signed_request(Method::GET, url.as_str(), HashMap::new(), key, secret).await?;
-	let positions: Vec<FuturesAllPositionsResponse> = deser_reqwest(r).await?;
-
-	let mut positions_map = HashMap::<String, f64>::new();
-	for position in positions {
-		let symbol = position.symbol.clone();
-		let qty = position.positionAmt.parse::<f64>()?;
-		positions_map.entry(symbol).and_modify(|e| *e += qty).or_insert(qty);
-	}
-	Ok(positions_map)
-}
-
-#[instrument(skip(key, secret, binance_exchange_arc))]
-pub async fn post_futures_order(key: String, secret: String, order: &Order<PositionOrderId>, binance_exchange_arc: Arc<RwLock<BinanceExchange>>) -> Result<BinanceOrder> {
-	debug!("Posting order");
-	let url = FuturesPositionResponse::get_url();
-
-	let mut binance_order = BinanceOrder::from_standard(order.clone(), binance_exchange_arc).await;
-	let mut params = binance_order.to_params();
-	params.insert("recvWindow", "60000".to_owned()); // dbg currently they/me are having some issues with response speed
-
-	let r = signed_request(reqwest::Method::POST, url.as_str(), params, key, secret).await?;
-	let response: FuturesPositionResponse = deser_reqwest(r).await?;
-	binance_order.binance_id = Some(response.order_id);
-	Ok(binance_order)
-}
-
-/// Normally, the only cases where the return from this poll is going to be _reacted_ to, is when response.status == OrderStatus::Filled or an error is returned.
-// TODO!: translate to websockets
-#[instrument(skip(key, secret))]
-pub async fn poll_futures_order<S: AsRef<str>>(key: S, secret: S, binance_order: &BinanceOrder) -> Result<FuturesPositionResponse> {
-	let url = FuturesPositionResponse::get_url();
-
-	let mut params = HashMap::<&str, String>::new();
-	params.insert("symbol", binance_order.base_info.symbol.to_string());
-	params.insert("orderId", format!("{}", &binance_order.binance_id.unwrap()));
-	params.insert("recvWindow", "20000".to_owned()); // dbg currently they are having some issues with response speed
-	debug!("Polling order");
-
-	let r = signed_request(reqwest::Method::GET, url.as_str(), params, key, secret).await?;
-	let response: FuturesPositionResponse = deser_reqwest(r).await?;
-	Ok(response)
-}
-
-#[derive(Debug, Deserialize)]
-pub struct BinanceKline {
-	open_time: i64,
-	open: String,
-	high: String,
-	low: String,
-	close: String,
-	volume: String,
-	close_time: i64,
-	quote_asset_volume: String,
-	number_of_trades: i64,
-	taker_buy_base_asset_volume: String,
-	taker_buy_quote_asset_volume: String,
-	ignore: String,
-}
 impl From<BinanceKline> for Ohlc {
 	fn from(val: BinanceKline) -> Self {
 		Ohlc {
@@ -331,129 +516,6 @@ impl From<BinanceKline> for Ohlc {
 struct FillFromPolling {
 	order: Order<PositionOrderId>,
 	market_response: FuturesPositionResponse, //HACK: harcodes futures
-}
-
-#[instrument]
-pub async fn get_historic_klines(symbol: String, interval: String, limit: usize) -> Result<Vec<BinanceKline>> {
-	let base_url = Market::BinanceFutures.get_base_url();
-	let endpoint = base_url.join("/fapi/v1/klines")?;
-
-	let params = vec![("symbol", symbol), ("interval", interval), ("limit", limit.to_string())];
-
-	let response = unsigned_request(Method::GET, endpoint.as_str(), params.into_iter().collect()).await?;
-
-	if !response.status().is_success() {
-		let error_body = response.text().await?;
-		bail!("Binance API error: {}", error_body);
-	}
-
-	let klines: Vec<BinanceKline> = response.json().await?;
-	Ok(klines)
-}
-
-/// NB: must be communicating back to the hub, can't shortcut and talk back directly to positions.
-#[instrument(skip_all)]
-pub async fn binance_runtime(
-	live_settings: Arc<LiveSettings>,
-	parent_js: &mut JoinSet<()>,
-	hub_callback: mpsc::Sender<ExchangeToHub>,
-	mut hub_rx: watch::Receiver<HubToExchange>,
-	binance_exchange_arc: Arc<RwLock<BinanceExchange>>,
-) {
-	debug!("Binance_runtime started");
-	let mut last_reported_fill_key = Uuid::default();
-	let currently_deployed: Arc<RwLock<Vec<BinanceOrder>>> = Arc::new(RwLock::new(Vec::new()));
-
-	use secrecy::ExposeSecret;
-	use v_exchanges::ExchangeName;
-
-	let config = live_settings.config().expect("Failed to load config");
-	let binance_config = config.get_exchange(ExchangeName::Binance).expect("Binance exchange config not found");
-
-	let pubkey = binance_config.api_pubkey.clone();
-	let secret = binance_config.api_secret.expose_secret().to_string();
-
-	let (temp_fills_stack_tx, mut temp_fills_stack_rx) = tokio::sync::mpsc::channel(100);
-	let currently_deployed_clone = currently_deployed.clone();
-	let (pubkey_clone, secret_clone) = (pubkey.clone(), secret.clone());
-
-	// Polling orders for fills
-	parent_js.spawn(async move {
-		// TODO!!!: make into a websocket
-		//LOOP: want to pull the orders for entire lifetime of the runtime. Later will be a websocket.
-		loop {
-			tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-
-			debug!("gonna request deployed orders. Could hang here.");
-			let mut orders: Vec<_> = {
-				let currently_deployed_read = currently_deployed_clone.read().unwrap();
-				currently_deployed_read.iter().cloned().collect()
-			};
-			debug!("Local knowledge of deployed orders: {:?}", orders);
-
-			// Will update to websocket later, so requesting the actual deployed orders is free.
-
-			// shuffle orders so there is no positional bias when polling
-			let mut rng = SmallRng::from_rng(&mut rand::rng());
-			orders.shuffle(&mut rng);
-
-			for (i, order) in orders.iter().enumerate() {
-				// // temp thing until I transfer to websocket
-				let r: FuturesPositionResponse = match poll_futures_order(&pubkey_clone, &secret_clone, order).await {
-					Ok(r) => r,
-					Err(e) => {
-						warn!("Error polling order: {:?}, breaking to the outer order-pull task loop", e);
-						continue;
-					}
-				};
-				debug!("Successfully polled order: {:?}", r);
-				//
-
-				// All other info except amount filled notional will only be relevant during trade's post-execution analysis.
-				if r.executed_qty != order.notional_filled {
-					{
-						currently_deployed_clone.write().unwrap()[i].notional_filled = r.executed_qty;
-					}
-					temp_fills_stack_tx.send(FillFromPolling::new(order.base_info.clone(), r)).await.unwrap();
-				}
-			}
-		}
-	});
-
-	// Keeping Exchange info up-to-date
-	//TODO!: move to websockets, have them be right here.
-	let binance_exchange_arc_clone = binance_exchange_arc.clone();
-	let live_settings_clone = live_settings.clone();
-	parent_js.spawn(async move {
-		//LOOP: auxiliary information; can't halt the main loop
-		loop {
-			tokio::time::sleep(std::time::Duration::from_secs(15)).await;
-
-			match BinanceExchangeFutures::init(live_settings_clone.clone()).await {
-				Ok(binance_exchange_futures_updated) => {
-					let mut binance_exchange_lock = binance_exchange_arc_clone.write().unwrap();
-					binance_exchange_lock.binance_futures_info = binance_exchange_futures_updated;
-				}
-				Err(e) => {
-					report_connection_problem(e.wrap_err("Error updating exchange info")).await;
-				}
-			}
-		}
-	});
-
-	//LOOP: Main loop of Binance exchange
-	loop {
-		//dbg
-		tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-		let now = chrono::Utc::now();
-		println!("Binance runtime is still going: {}", now.format("%Y-%m-%d %H:%M:%S"));
-		select! {
-			Ok(_) = hub_rx.changed() => {
-				handle_hub_orders_update(&hub_rx, &mut last_reported_fill_key, &pubkey, &secret, currently_deployed.clone(), binance_exchange_arc.clone()).await;
-			},
-			_ = handle_temp_fills_stack(&mut temp_fills_stack_rx, &hub_callback, &mut last_reported_fill_key, currently_deployed.clone()) => {},
-		}
-	}
 }
 
 #[instrument(skip(hub_callback))]
@@ -532,12 +594,12 @@ async fn handle_hub_orders_update(
 	}
 	trace!("closed orders");
 
-	let mut just_deployed = Vec::new();
+	let mut just_deployed = Vec::default();
 	for o in target_orders {
 		let b = match post_futures_order(pubkey.to_string(), secret.to_string(), &o, binance_exchange_arc.clone()).await {
 			Ok(order) => order,
 			Err(e) => {
-				tracing::error!("Error posting order: {:?}", e);
+				tracing::error!("Error posting order: {e:?}");
 				continue;
 			}
 		};
@@ -554,64 +616,6 @@ async fn handle_hub_orders_update(
 //=============================================================================
 // Response structs {{{
 //=============================================================================
-
-#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
-pub enum OrderStatus {
-	#[default]
-	#[serde(rename = "NEW")]
-	New,
-	#[serde(rename = "PARTIALLY_FILLED")]
-	PartiallyFilled,
-	#[serde(rename = "FILLED")]
-	Filled,
-	#[serde(rename = "CANCELED")]
-	Canceled,
-	#[serde(rename = "EXPIRED")]
-	Expired,
-	#[serde(rename = "EXPIRED_IN_MATCH")]
-	ExpiredInMatch,
-}
-
-#[serde_as]
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FuturesPositionResponse {
-	pub client_order_id: Option<String>,
-	pub cum_qty: Option<String>, // weird field, included at random (json api things)
-	pub cum_quote: String,       // total filled quote asset
-	#[serde_as(as = "DisplayFromStr")]
-	pub executed_qty: f64, // total filled base asset
-	pub order_id: i64,
-	pub avg_price: Option<String>,
-	pub orig_qty: String,
-	pub price: String,
-	pub reduce_only: Value,
-	pub side: String,
-	pub position_side: Option<String>, // only sent when in hedge mode
-	pub status: OrderStatus,
-	pub stop_price: String,
-	pub close_position: Value,
-	pub symbol: String,
-	pub time_in_force: String,
-	pub r#type: String,
-	pub orig_type: String,
-	pub activate_price: Option<f64>, // only returned on TRAILING_STOP_MARKET order
-	pub price_rate: Option<f64>,     // only returned on TRAILING_STOP_MARKET order
-	pub update_time: i64,
-	pub working_type: Option<String>, // no clue what this is
-	pub price_protect: bool,
-	pub price_match: Option<String>, // huh
-	pub self_trade_prevention_mode: Option<String>,
-	pub good_till_date: Option<i64>,
-}
-
-impl FuturesPositionResponse {
-	pub fn get_url() -> Url {
-		let base_url = Market::BinanceFutures.get_base_url();
-		// the way this works - is we sumbir "New" and "Query" to the same endpoint. The action is then determined by the presence of the orderId parameter.
-		base_url.join("/fapi/v1/order").unwrap()
-	}
-}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct FuturesBalance {

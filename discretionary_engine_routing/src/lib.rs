@@ -122,20 +122,22 @@ pub struct RoutingHub {
 }
 impl RoutingHub {
 	/// Awaits until any asset's book ticks, then drives that asset's executor.
-	pub async fn next(&mut self) -> Asset {
+	pub async fn next(&mut self) {
+		// drain command queue
 		self.apply_commands().await;
+
+		// `CL`s don't make progress if book hasn't updated since last time. So this here is when all are done and we just sit and wait for any to be able to make progress when book updates again.
 		if self.ticks.is_empty() {
-			std::future::pending::<()>().await; //Q: wait, why are we doing this?
+			std::future::pending::<()>().await;
 			unreachable!()
 		}
 		let asset = self.ticks.next().await.expect("FuturesUnordered yielded None despite non-empty set");
+
 		self.push_asset_tick(asset).await;
-		if let Some(executor) = self.assets.get_mut(&asset)
-			&& let Err(e) = executor.tick().await
-		{
+		let executor = self.assets.get_mut(&asset).expect("ticked asset has no executor");
+		if let Err(e) = executor.tick().await {
 			tracing::error!(%asset, "Executor::tick() failed: {e:?}");
 		}
-		asset
 	}
 
 	async fn apply_commands(&mut self) {

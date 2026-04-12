@@ -182,9 +182,7 @@ async fn main() -> Result<()> {
 			loop {
 				//dbg: not the place for it, - we shouldn't
 				tokio::select! {
-					asset = routing_hub.next() => {
-						info!(%asset, "executor ticked");
-					}
+					_ = routing_hub.next() => {}
 
 					result = subscriber.next::<de_routing::Commands>() => {
 						match result {

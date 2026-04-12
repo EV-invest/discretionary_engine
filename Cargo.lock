@@ -1112,6 +1112,7 @@ dependencies = [
 name = "de_exec"
 version = "0.1.0"
 dependencies = [
+ "ahash 0.8.12",
  "derive-new",
  "derive_more",
  "strum 0.28.0",
@@ -1163,13 +1164,10 @@ dependencies = [
  "de_exec",
  "derive_more",
  "futures-util",
- "insta",
  "jiff",
  "miette",
- "rand 0.10.1",
  "serde",
  "thiserror 2.0.18",
- "tokio-stream",
  "tracing",
  "uuid",
  "v_exchanges",

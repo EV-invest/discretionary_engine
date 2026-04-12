@@ -61,8 +61,6 @@ pub struct Executor {
 	/// Last known desired orders per CL — used when next() returns Ok(None)
 	order_cache: AHashMap<Uuid, Arc<Vec<ExchangeOrder<LimitOrder>>>>,
 }
-#[derive(Debug)]
-enum ExecutorError {}
 impl Executor {
 	pub async fn tick(&mut self) -> Result<(), ExecutorError> {
 		// Iceberg
@@ -115,28 +113,6 @@ impl Executor {
 		Ok(())
 	}
 }
-impl Default for Executor {
-	fn default() -> Self {
-		Self {
-			inner: Vec::default(),
-			order_sink: AHashMap::default(),
-			order_cache: AHashMap::default(),
-		}
-	}
-}
-impl Component for Executor {
-	fn component_id(&self) -> ComponentId {
-		todo!()
-	}
-
-	fn state(&self) -> ComponentState {
-		todo!()
-	}
-
-	fn transition_state(&mut self, trigger: ComponentTrigger) {
-		todo!()
-	}
-}
 
 pub struct RoutingHub {
 	assets: AHashMap<Asset, Executor>,
@@ -149,14 +125,15 @@ impl RoutingHub {
 	pub async fn next(&mut self) -> Asset {
 		self.apply_commands().await;
 		if self.ticks.is_empty() {
-			std::future::pending::<()>().await;
+			std::future::pending::<()>().await; //Q: wait, why are we doing this?
 			unreachable!()
 		}
 		let asset = self.ticks.next().await.expect("FuturesUnordered yielded None despite non-empty set");
-		if let Some(executor) = self.assets.get_mut(&asset) {
-			if let Err(e) = executor.tick().await {
-				tracing::error!(%asset, "Executor::tick() failed: {e:?}");
-			}
+		self.push_asset_tick(asset).await;
+		if let Some(executor) = self.assets.get_mut(&asset)
+			&& let Err(e) = executor.tick().await
+		{
+			tracing::error!(%asset, "Executor::tick() failed: {e:?}");
 		}
 		asset
 	}
@@ -243,6 +220,47 @@ impl RoutingHub {
 	}
 }
 
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum RoutingError {
+	Invalid(InvalidRoutingError),
+	Other(miette::Error),
+}
+#[derive(Debug, derive_more::Display)]
+pub enum InvalidRoutingError {
+	#[display("adjustment would reverse position (hint: submit a Del and a new New instead)")]
+	AdjustmentWouldReverse,
+}
+/// Helper trait for `HashSet<ConceptualLimit>` lookup by Uuid.
+/// Since `ConceptualLimit` eq/hash is by id, we iterate (sets are small, writes are rare).
+trait LimitSetExt {
+	fn take_by_id(&mut self, id: Uuid) -> Option<ConceptualLimit>;
+	fn remove_by_id(&mut self, id: Uuid) -> bool;
+}
+#[derive(Debug)]
+enum ExecutorError {}
+impl Default for Executor {
+	fn default() -> Self {
+		Self {
+			inner: Vec::default(),
+			order_sink: AHashMap::default(),
+			order_cache: AHashMap::default(),
+		}
+	}
+}
+impl Component for Executor {
+	fn component_id(&self) -> ComponentId {
+		todo!()
+	}
+
+	fn state(&self) -> ComponentState {
+		todo!()
+	}
+
+	fn transition_state(&mut self, trigger: ComponentTrigger) {
+		todo!()
+	}
+}
+
 impl Default for RoutingHub {
 	fn default() -> Self {
 		let mut hub = Self {
@@ -278,22 +296,6 @@ impl Component for RoutingHub {
 
 //Nb: at this level there is no interpreting and selecting from orders generated from ConceptualLimit processes, - we just take and execute them as-is. Thinking about what others are doing is on `_strategy`, - in here we just do what we're told
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum RoutingError {
-	Invalid(InvalidRoutingError),
-	Other(miette::Error),
-}
-#[derive(Debug, derive_more::Display)]
-pub enum InvalidRoutingError {
-	#[display("adjustment would reverse position (hint: submit a Del and a new New instead)")]
-	AdjustmentWouldReverse,
-}
-/// Helper trait for `HashSet<ConceptualLimit>` lookup by Uuid.
-/// Since `ConceptualLimit` eq/hash is by id, we iterate (sets are small, writes are rare).
-trait LimitSetExt {
-	fn take_by_id(&mut self, id: Uuid) -> Option<ConceptualLimit>;
-	fn remove_by_id(&mut self, id: Uuid) -> bool;
-}
 impl LimitSetExt for Executor {
 	fn take_by_id(&mut self, id: Uuid) -> Option<ConceptualLimit> {
 		let pos = self.iter().position(|l| l.id == id)?;

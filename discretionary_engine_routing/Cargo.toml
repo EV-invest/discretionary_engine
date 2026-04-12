@@ -21,20 +21,15 @@ de_core.workspace = true
 de_data.workspace = true
 de_exec.workspace = true
 derive_more.workspace = true
-rand.workspace = true
 futures-util.workspace = true
 jiff.workspace = true
 miette.workspace = true
 serde.workspace = true
 thiserror.workspace = true
-tokio-stream.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 v_exchanges.workspace = true
 v_utils.workspace = true
-
-[dev-dependencies]
-insta.workspace = true
 
 [lints]
 workspace = true

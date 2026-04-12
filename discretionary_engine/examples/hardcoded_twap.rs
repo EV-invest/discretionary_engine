@@ -54,6 +54,10 @@ struct Args {
 	lots: u8,
 	#[arg(long)]
 	reduce_only: bool,
+	/// Place one tick inside the spread instead of joining the best bid/ask queue.
+	/// More likely to fill faster but exposes us to being exploited by spoofers.
+	#[arg(long, default_value_t = false)]
+	aggressive: bool,
 	#[command(flatten)]
 	settings: SettingsFlags,
 }
@@ -210,6 +214,7 @@ async fn main() -> Result<()> {
 			qty_decimals,
 			interval,
 			args.reduce_only,
+			args.aggressive,
 		)
 		.await
 		.with_context(|| format!("[{lot_num}/{}] chase_lot failed", args.lots))?;
@@ -240,6 +245,7 @@ async fn chase_lot(
 	qty_decimals: usize,
 	interval: Duration,
 	reduce_only: bool,
+	aggressive: bool,
 ) -> Result<()> {
 	let deadline = Instant::now() + interval;
 	let market_fallback_at = Instant::now() + interval.mul_f64(0.9);
@@ -297,7 +303,7 @@ async fn chase_lot(
 	let order_link_id = format!("twap-{short_uuid}");
 	let client_order_id = ClientOrderId::from(order_link_id.as_str());
 
-	let initial_price = limit_price(side, bid, ask, tick_size);
+	let initial_price = limit_price(side, bid, ask, tick_size, aggressive);
 	let initial_order = make_place_params(symbol, product_type, bybit_side, qty, qty_step, initial_price, tick_size, &order_link_id);
 	trade_client
 		.place_order(initial_order, client_order_id, trader_id, strategy_id, instrument_id)
@@ -359,7 +365,7 @@ async fn chase_lot(
 						if let nautilus_model::data::Data::Quote(quote) = data {
 							bid = quote.bid_price.as_f64();
 							ask = quote.ask_price.as_f64();
-							let new_price = limit_price(side, bid, ask, tick_size);
+							let new_price = limit_price(side, bid, ask, tick_size, aggressive);
 							let price_improved = match side {
 								"Buy" => new_price > last_price,
 								_ => new_price < last_price,
@@ -439,16 +445,22 @@ async fn chase_lot(
 	Ok(())
 }
 
-fn limit_price(side: &str, bid: f64, ask: f64, tick: f64) -> f64 {
+fn limit_price(side: &str, bid: f64, ask: f64, tick: f64, aggressive: bool) -> f64 {
 	match side {
-		"Buy" => {
-			let p = bid + tick;
-			if p >= ask { bid } else { p }
-		}
-		_ => {
-			let p = ask - tick;
-			if p <= bid { ask } else { p }
-		}
+		"Buy" =>
+			if aggressive {
+				let p = bid + tick;
+				if p >= ask { bid } else { p }
+			} else {
+				bid
+			},
+		_ =>
+			if aggressive {
+				let p = ask - tick;
+				if p <= bid { ask } else { p }
+			} else {
+				ask
+			},
 	}
 }
 

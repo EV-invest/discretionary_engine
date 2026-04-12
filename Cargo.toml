@@ -35,12 +35,12 @@ de_strategy = { path = "discretionary_engine_strategy" }
 derive-new = "0.7.0"
 derive_more = { version = "^2.1.1", features = ["from_str", "display", "from", "deref", "deref_mut"] }
 dirs = "6.0"
-indicatif = "0.17"
 eyre = "0.6.12"
 function_name = "0.3.0"
 futures-util = "0.3.32"
 hex = "0.4.3"
 hmac = "0.13.0"
+indicatif = "0.17"
 insta = { version = "1.46.3", features = ["json"] }
 jiff = "^0.2.23"
 lazy_static = "1.5.0"

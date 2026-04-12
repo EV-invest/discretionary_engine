@@ -2,7 +2,7 @@
 //!
 //! Splits a total order into N equal lots over a fixed duration. Each lot gets one interval
 //! slot. For 90% of that slot, we hold a PostOnly limit order that chases the best price
-//! (amending whenever the market moves favorably — never retreating). At 90% we cancel and
+//! (amending whenever the best bid/ask moves — chasing the top of book in both directions). At 90% we cancel and
 //! market-fill whatever remains, guaranteeing completion within the interval. If the exchange
 //! rejects the PostOnly immediately (spread too tight), we skip straight to market.
 //!
@@ -10,7 +10,10 @@
 //! The interval sleep between lots starts *after* the lot completes, so total wall time is
 //! `time + (lots - 1) * interval` in the worst case, or just `time` if all lots fill early.
 
-use std::time::{Duration, Instant};
+use std::{
+	sync::Arc,
+	time::{Duration, Instant},
+};
 
 use color_eyre::eyre::{Context, ContextCompat, Result, bail};
 use discretionary_engine::config::{LiveSettings, SettingsFlags};
@@ -30,6 +33,7 @@ use nautilus_bybit::{
 };
 use nautilus_model::identifiers::{ClientOrderId, InstrumentId, StrategyId, TraderId, VenueOrderId};
 use secrecy::ExposeSecret;
+use tokio::sync::Notify;
 use ustr::Ustr;
 use v_exchanges::{Instrument, Ticker};
 use v_utils::{
@@ -370,11 +374,7 @@ async fn chase_lot(
 							bid = quote.bid_price.as_f64();
 							ask = quote.ask_price.as_f64();
 							let new_price = limit_price(side, bid, ask, tick_size, aggressive);
-							let price_improved = match side {
-								"Buy" => new_price > last_price,
-								_ => new_price < last_price,
-							};
-							if price_improved {
+							if new_price != last_price {
 								let amend = BybitWsAmendOrderParams {
 									category: product_type,
 									symbol: Ustr::from(symbol),

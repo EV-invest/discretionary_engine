@@ -4,7 +4,10 @@ use ahash::{AHashMap, AHashSet};
 use miette::Result;
 use uuid::Uuid;
 use v_exchanges::{ExchangeName, ExchangeOrder, Symbol, orders::LimitOrder};
-use v_utils::trades::Side;
+use v_utils::{
+	arch::{Keyed, MyKey},
+	trades::Side,
+};
 
 use crate::data::BookRef;
 
@@ -146,6 +149,14 @@ impl Eq for ConceptualLimit {}
 impl Hash for ConceptualLimit {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		self.id.hash(state);
+	}
+}
+
+impl Keyed for ConceptualLimit {
+	type Key = Uuid;
+
+	fn keys(&self) -> MyKey<Uuid> {
+		MyKey::new(self.id, None) //TODO!!!: parent should link to the Protocol that requested it
 	}
 }
 

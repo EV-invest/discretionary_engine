@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use v_exchanges::core::Symbol;
 use v_utils::{Percent, trades::Side};
 
+//HACK: wtf, should most definitely be Copy lol
 pub trait IdRequirements: Hash + Clone + PartialEq + Default + std::fmt::Debug {}
 impl<T: Hash + Clone + PartialEq + Default + std::fmt::Debug> IdRequirements for T {}
 

@@ -1115,7 +1115,9 @@ dependencies = [
  "derive-new",
  "derive_more",
  "strum 0.28.0",
+ "uuid",
  "v_exchanges",
+ "v_utils",
 ]
 
 [[package]]
@@ -1158,6 +1160,7 @@ dependencies = [
  "color-eyre",
  "de_core",
  "de_data",
+ "de_exec",
  "derive_more",
  "futures-util",
  "insta",

@@ -1,5 +1,7 @@
 use derive_more::Deref;
 use strum::{AsRefStr, Display, EnumIter, EnumString, FromRepr};
+use uuid::Uuid;
+use v_utils::arch::{Keyed, MyKey};
 use v_exchanges::ExchangeOrder;
 
 /// Lifecycle state of an order on the venue.
@@ -67,13 +69,23 @@ pub struct ExecOrder<O> {
 	#[deref]
 	pub inner: ExchangeOrder<O>,
 	#[new(default)]
+	pub state: OrderState,
+
+	#[new(default)]
 	__filled: f64,
 	#[new(default)]
-	pub state: OrderState,
+	__keyed: MyKey<Uuid>,
 }
 
 impl<O: PartialEq> PartialEq for ExecOrder<O> {
 	fn eq(&self, other: &Self) -> bool {
 		self.inner == other.inner
+	}
+}
+
+impl<O> Keyed for ExecOrder<O> {
+	type Key = Uuid;
+	fn keys(&self) -> MyKey<Uuid> {
+		self.__keyed
 	}
 }

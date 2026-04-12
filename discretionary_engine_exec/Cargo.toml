@@ -17,7 +17,9 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 derive-new.workspace = true
 derive_more.workspace = true
 strum.workspace = true
+uuid.workspace = true
 v_exchanges.workspace = true
+v_utils.workspace = true
 
 [lints]
 workspace = true

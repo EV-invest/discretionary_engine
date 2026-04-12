@@ -13,6 +13,8 @@ use uuid::Uuid;
 use v_exchanges::{ExchangeOrder, orders::LimitOrder};
 use v_utils::trades::Asset;
 
+use de_exec::ExecOrder;
+
 use crate::algo::ConceptualLimit;
 
 pub const STREAM_KEY: &str = "discretionary_engine:routing:commands";

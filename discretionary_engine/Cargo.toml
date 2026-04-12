@@ -28,6 +28,7 @@ de_strategy.workspace = true
 derive-new.workspace = true
 derive_more.workspace = true
 dirs.workspace = true
+indicatif.workspace = true
 eyre.workspace = true
 function_name.workspace = true
 futures-util.workspace = true

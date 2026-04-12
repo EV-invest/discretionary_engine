@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 use color_eyre::eyre::{Context, ContextCompat, Result, bail};
 use discretionary_engine::config::{LiveSettings, SettingsFlags};
 use futures_util::{StreamExt, pin_mut};
+use indicatif::{ProgressBar, ProgressStyle};
 use nautilus_bybit::{
 	common::enums::{BybitAccountType, BybitEnvironment, BybitOrderSide, BybitOrderType, BybitPositionSide, BybitProductType, BybitTimeInForce},
 	http::{
@@ -184,9 +185,16 @@ async fn main() -> Result<()> {
 	};
 	let category = if is_spot { "spot" } else { "linear" };
 
+	let bar = ProgressBar::new(args.lots as u64);
+	bar.set_style(
+		ProgressStyle::with_template("TWAP {msg} [{bar:40.cyan/blue}] {pos}/{len} lots  elapsed {elapsed_precise}  eta {eta_precise}")
+			.unwrap()
+			.progress_chars("█░"),
+	);
+	bar.set_message(symbol.clone());
+
 	for i in 0..args.lots {
 		let lot_num = i + 1;
-		println!("[{lot_num}/{}] Starting chase-limit for {size_per_lot:.qty_decimals$} {symbol}...", args.lots);
 
 		chase_lot(
 			&client,
@@ -206,13 +214,14 @@ async fn main() -> Result<()> {
 		.await
 		.with_context(|| format!("[{lot_num}/{}] chase_lot failed", args.lots))?;
 
-		println!("[{lot_num}/{}] Done.", args.lots);
+		bar.inc(1);
 
 		if lot_num < args.lots {
 			tokio::time::sleep(interval).await;
 		}
 	}
 
+	bar.finish_with_message(format!("{symbol} done"));
 	println!("Done. Executed {total_size} {symbol} in {} lots.", args.lots);
 	Ok(())
 }
@@ -266,7 +275,7 @@ async fn chase_lot(
 
 	let environment = BybitEnvironment::Mainnet;
 	let trader_id = TraderId::from("TWAP-001");
-	let strategy_id = StrategyId::from("TWAP_CHASE");
+	let strategy_id = StrategyId::from("TWAP-CHASE");
 	let instrument_id = InstrumentId::from(format!("{symbol}.BYBIT").as_str());
 
 	let mut trade_client = BybitWebSocketClient::new_trade(environment, Some(api_key), Some(api_secret), None, None);
@@ -297,9 +306,7 @@ async fn chase_lot(
 
 	let mut last_price = initial_price;
 	let mut venue_order_id: Option<VenueOrderId> = None;
-	let mut order_live = true;
 	let mut filled = false;
-	let mut used_market_fallback = false;
 
 	loop {
 		if filled {
@@ -313,18 +320,14 @@ async fn chase_lot(
 		}
 
 		// At 90%, cancel limit and market-fill
-		if !used_market_fallback && now >= market_fallback_at {
-			used_market_fallback = true;
-			if order_live {
-				let cancel = BybitWsCancelOrderParams {
-					category: product_type,
-					symbol: Ustr::from(symbol),
-					order_id: None,
-					order_link_id: Some(order_link_id.clone()),
-				};
-				let _ = trade_client.cancel_order(cancel, client_order_id, trader_id, strategy_id, instrument_id, venue_order_id).await;
-				order_live = false;
-			}
+		if now >= market_fallback_at {
+			let cancel = BybitWsCancelOrderParams {
+				category: product_type,
+				symbol: Ustr::from(symbol),
+				order_id: None,
+				order_link_id: Some(order_link_id.clone()),
+			};
+			let _ = trade_client.cancel_order(cancel, client_order_id, trader_id, strategy_id, instrument_id, venue_order_id).await;
 			// Market fallback via HTTP — simpler and avoids WS ordering issues
 			let fallback_id = format!("twap-fb-{}", uuid::Uuid::new_v4());
 			let resp = http
@@ -361,7 +364,7 @@ async fn chase_lot(
 								"Buy" => new_price > last_price,
 								_ => new_price < last_price,
 							};
-							if price_improved && order_live {
+							if price_improved {
 								let amend = BybitWsAmendOrderParams {
 									category: product_type,
 									symbol: Ustr::from(symbol),

@@ -33,6 +33,7 @@ function_name.workspace = true
 futures-util.workspace = true
 hex.workspace = true
 hmac.workspace = true
+indicatif.workspace = true
 jiff.workspace = true
 miette.workspace = true
 nautilus-bybit.workspace = true

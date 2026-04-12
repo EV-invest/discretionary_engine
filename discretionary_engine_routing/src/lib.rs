@@ -63,7 +63,7 @@ impl Component for Executor {
 		todo!()
 	}
 
-	fn transition_state(&mut self, trigger: ComponentTrigger) {
+	fn transition_state(&mut self, _trigger: ComponentTrigger) {
 		todo!()
 	}
 }
@@ -97,7 +97,7 @@ impl RoutingHub {
 
 					self.assets.entry(asset).or_insert_with(|| {
 						info!(asset = %asset, "Initializing asset");
-						AHashSet::default()
+						Executor { inner: AHashSet::default() }
 					});
 
 					let book = de_data::book(asset).await;
@@ -208,8 +208,8 @@ impl Component for RoutingHub {
 		self.state
 	}
 
-	fn transition_state(&mut self, trigger: ComponentTrigger) {
-		self.state.transition(trigger);
+	fn transition_state(&mut self, _trigger: ComponentTrigger) {
+		self.state.transition(_trigger);
 	}
 }
 

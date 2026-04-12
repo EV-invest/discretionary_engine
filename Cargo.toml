@@ -40,6 +40,7 @@ function_name = "0.3.0"
 futures-util = "0.3.32"
 hex = "0.4.3"
 hmac = "0.13.0"
+indicatif = "0.17"
 insta = { version = "1.46.3", features = ["json"] }
 jiff = "^0.2.23"
 lazy_static = "1.5.0"

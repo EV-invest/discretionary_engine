@@ -49,10 +49,41 @@ pub async fn publish(cmd: Commands, redis_port: u16) -> color_eyre::eyre::Result
 }
 
 #[derive(Debug, derive_more::Deref, derive_more::DerefMut)]
+/// Per-Asset Executor
+///
+/// Takes care of all the execution on a single asset
 pub struct Executor {
 	#[deref]
 	#[deref_mut]
 	inner: AHashSet<ConceptualLimit>,
+}
+impl Executor {
+	pub async fn tick(self) -> Result<()> {
+		// Iceberg
+		{
+			//DO: join await `next()` on all children, get back exact new desired target Vec<ExchangeOrder>
+			let new_orders = futures_util::future::join_all(self.iter().map(|limit| limit.next() /*TODO: need to check if it's Ok(None) right here; if yes, - use value from our cache*/)).await;
+
+			//DO: now should have `AHashMap<Uuid, Vec<ExchangeOrder>>`
+
+			//DO: for each, calculate (expected-impact-on-the-book / necessary_rate[^1])
+			//[^1] to compare apple to apple, we reuse `necessary_rate` (min size/time to expect to fill). Think about it, - with all same, if one algo wants larger size than another, it's likely to be more important. So don't fight the implications trying to equal all out, - execute on user intent.
+
+			//DO: now look at the matching hashmap of our order_sink, and see if any are above/below quota.
+
+			//DO: in both cases, we randomly select orders to remove/add.
+			// // won't lead to cache misses as we only do this on mismatch
+			// // Also, don't forget to attach the Uuid of the parent CL when submitting
+		}
+
+
+		// Forcing
+		{
+			todo!();
+		}
+
+		Ok(())
+	}
 }
 impl Component for Executor {
 	fn component_id(&self) -> ComponentId {

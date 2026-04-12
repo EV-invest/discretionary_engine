@@ -23,6 +23,7 @@ derive_more.workspace = true
 futures-util.workspace = true
 miette.workspace = true
 serde.workspace = true
+jiff.workspace = true
 thiserror.workspace = true
 tokio-stream.workspace = true
 tracing.workspace = true

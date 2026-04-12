@@ -17,13 +17,29 @@ pub struct ConceptualLimitChangeable {
 	/// qty size (signed, - side inferred)
 	#[arg(long)]
 	pub qty: f64,
-	//TODO: the actually juicy parts like the relative cost of price diff vs time
+
+	//Q: Tried to impl a termination special-cases (like saying we don't care to continue when price comes back after leaving the range). But then it has to depend on how far away or how deep inside it has had gotten. But then this starts to sound pretty generic, so might as well just implement it for everyone?
+	//#[arg(long, value_enum)]
+	//pub termination: ConceptualLimitTermination,
+	//Q: what about a scaling gradient for how violently we react
+
+	//pub aggression: ?, //Q: want some way to express how aggressive the Iceberg part should be
+	#[arg(short, long)]
+	pub time: jiff::SignedDuration,
 }
+
+//#[derive(clap::ValueEnum, Clone, Debug, serde::Deserialize, serde::Serialize)]
+//pub enum ConceptualLimitTermination {
+//	/// Allotted time has run out
+//	Timeout,
+//	/// First cross of the limit price since ently
+//	Crossed,
+//}
 
 #[derive(clap::Args, Clone, Debug, serde::Deserialize, serde::Serialize)]
 pub struct ConceptualLimitArgs {
 	/// gimme [Symbol](v_exchanges::Symbol)
-	#[arg(long)]
+	#[arg(short, long)]
 	pub symbol: Symbol,
 
 	#[command(flatten)]
@@ -68,11 +84,11 @@ impl ConceptualLimit {
 	/// Returns None if the output is unchanged from the previous call.
 	///
 	/// no generics or "semantic" stuff at this level, - we produce exact limit orders for exact exchange with exact configuration
-	pub async fn next(&mut self) -> Result<Option<AHashSet<ExchangeOrder<LimitOrder>>>, Error> {
+	pub async fn next(&mut self) -> Result<Option<Vec<ExchangeOrder<LimitOrder>>>, Error> {
 		let book = self.__book.snapshot();
 
 		//HACK: the dumbest Chase Limit imaginable
-		//TODO!!!: make proper
+		//TODO!!!!: make proper
 		let price = match self.side {
 			Side::Buy => {
 				let best_bid = book.bids.iter().map(|(p, _)| *p).fold(f64::NEG_INFINITY, f64::max);
@@ -85,19 +101,19 @@ impl ConceptualLimit {
 		};
 
 		let limit = LimitOrder::new(self.side, price, self.size_q);
-		let exchg = ExchangeOrder::new(
+		let single_sad_chase_limit = ExchangeOrder::new(
 			limit,
 			v_exchanges::Ticker {
 				symbol: self.symbol,
 				exchange_name: ExchangeName::Bybit, //dbg
 			},
 		);
-		let orders = AHashSet::from([exchg]);
+		let orders = vec![single_sad_chase_limit];
 
 		if self.__prev == orders {
 			return Ok(None);
 		}
-		self.__prev = orders.clone();
+		self.__prev = orders.clone(); //HACK: uhhh, gotta be a better way with reuse of memory
 		Ok(Some(orders))
 	}
 

@@ -6,7 +6,8 @@ use nautilus_bybit::{
 	common::enums::{BybitAccountType, BybitPositionSide, BybitProductType},
 	http::{
 		client::BybitRawHttpClient,
-		query::{BybitPositionListParamsBuilder, BybitWalletBalanceParams},
+		models::{BybitInstrumentLinearResponse, BybitInstrumentSpotResponse},
+		query::{BybitInstrumentsInfoParamsBuilder, BybitPositionListParamsBuilder, BybitWalletBalanceParams},
 	},
 };
 use secrecy::ExposeSecret;
@@ -109,11 +110,37 @@ async fn main() -> Result<()> {
 		}
 	};
 
+	// Fetch qty_step (or base_precision for spot) to round lot sizes correctly
+	let qty_step: f64 = {
+		let info_params = BybitInstrumentsInfoParamsBuilder::default()
+			.category(if is_spot { BybitProductType::Spot } else { BybitProductType::Linear })
+			.symbol(symbol.clone())
+			.build()
+			.context("Failed to build instruments info params")?;
+		if is_spot {
+			let resp: BybitInstrumentSpotResponse = client
+				.get_instruments::<BybitInstrumentSpotResponse>(&info_params)
+				.await
+				.context("Failed to fetch spot instrument info")?;
+			let instr = resp.result.list.into_iter().next().with_context(|| format!("No spot instrument info for {symbol}"))?;
+			instr.lot_size_filter.base_precision.parse().context("Failed to parse base_precision")?
+		} else {
+			let resp: BybitInstrumentLinearResponse = client
+				.get_instruments::<BybitInstrumentLinearResponse>(&info_params)
+				.await
+				.context("Failed to fetch linear instrument info")?;
+			let instr = resp.result.list.into_iter().next().with_context(|| format!("No linear instrument info for {symbol}"))?;
+			instr.lot_size_filter.qty_step.parse().context("Failed to parse qty_step")?
+		}
+	};
+
+	let qty_decimals = qty_step.to_string().find('.').map(|i| qty_step.to_string().len() - i - 1).unwrap_or(0);
+
 	let interval = args.time.duration() / args.lots as u32;
-	let size_per_lot = total_size / args.lots as f64;
+	let size_per_lot = (total_size / args.lots as f64 / qty_step).floor() * qty_step;
 
 	let summary = format!(
-		"TWAP: {} {} {total_size} {symbol} | {} lots of {size_per_lot:.6} every {}s (total {}s)",
+		"TWAP: {} {} {total_size} {symbol} | {} lots of {size_per_lot:.qty_decimals$} every {}s (total {}s)",
 		args.ticker,
 		args.side,
 		args.lots,
@@ -139,7 +166,7 @@ async fn main() -> Result<()> {
 				"symbol": symbol,
 				"side": order_side,
 				"orderType": "Market",
-				"qty": format!("{size_per_lot:.6}"),
+				"qty": format!("{size_per_lot:.qty_decimals$}"),
 				"timeInForce": "IOC",
 				"orderLinkId": format!("twap-{}-{}", lot_num, uuid::Uuid::new_v4()),
 				"reduceOnly": args.reduce_only,
@@ -150,7 +177,7 @@ async fn main() -> Result<()> {
 		if resp.ret_code != 0 {
 			bail!("[{lot_num}/{}] Order failed: {} (code: {})", args.lots, resp.ret_msg, resp.ret_code);
 		}
-		println!("[{lot_num}/{}] {order_side} {size_per_lot:.6} {symbol} — id: {:?}", args.lots, resp.result.order_id);
+		println!("[{lot_num}/{}] {order_side} {size_per_lot:.qty_decimals$} {symbol} — id: {:?}", args.lots, resp.result.order_id);
 
 		if lot_num < args.lots {
 			tokio::time::sleep(interval).await;

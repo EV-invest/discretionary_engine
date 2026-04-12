@@ -97,7 +97,7 @@ impl RoutingHub {
 
 					self.assets.entry(asset).or_insert_with(|| {
 						info!(asset = %asset, "Initializing asset");
-						AHashSet::default()
+						Executor { inner: AHashSet::default() }
 					});
 
 					let book = de_data::book(asset).await;

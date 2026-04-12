@@ -13,7 +13,7 @@ use v_utils::{
 	trades::{Side, Timeframe},
 };
 
-#[derive(clap::Parser, Debug)]
+#[derive(Debug, clap::Parser)]
 struct Args {
 	/// Ticker, e.g. "bybit:BTC-USDT.p"
 	ticker: Ticker,

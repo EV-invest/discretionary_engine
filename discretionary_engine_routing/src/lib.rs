@@ -2,29 +2,24 @@
 pub mod algo;
 pub mod data;
 
-use std::pin::Pin;
-use std::sync::Arc;
+use std::{pin::Pin, sync::Arc};
 
 use ahash::{AHashMap, AHashSet};
 use de_core::component::{Component, ComponentId, ComponentState, ComponentTrigger};
-use futures_util::StreamExt as _;
+use de_exec::ExecOrder;
+use futures_util::{StreamExt as _, stream::FuturesUnordered};
 use miette::Result;
-use tokio_stream::StreamMap;
 use tracing::info;
 use uuid::Uuid;
 use v_exchanges::{ExchangeOrder, orders::LimitOrder};
 use v_utils::{arch::Keyed, trades::Asset};
-
-use de_exec::ExecOrder;
 
 use crate::algo::ConceptualLimit;
 
 pub const STREAM_KEY: &str = "discretionary_engine:routing:commands";
 pub const CONSUMER_GROUP: &str = "routing_consumers";
 
-pub type LimitStepResult = (Uuid, std::result::Result<Option<Vec<ExchangeOrder<LimitOrder>>>, algo::Error>);
-
-type AssetStream = Pin<Box<dyn futures_util::Stream<Item = Vec<LimitStepResult>> + Send>>;
+type AssetTick = Pin<Box<dyn std::future::Future<Output = Asset> + Send>>;
 #[derive(Debug, serde::Deserialize, serde::Serialize, clap::Subcommand)]
 pub enum Commands {
 	New(algo::ConceptualLimitArgs),
@@ -66,17 +61,18 @@ pub struct Executor {
 	/// Last known desired orders per CL — used when next() returns Ok(None)
 	order_cache: AHashMap<Uuid, Arc<Vec<ExchangeOrder<LimitOrder>>>>,
 }
+#[derive(Debug)]
+enum ExecutorError {}
 impl Executor {
-	pub async fn tick(&mut self) -> Result<()> {
+	pub async fn tick(&mut self) -> Result<(), ExecutorError> {
 		// Iceberg
 		{
 			//DO: join await `next()` on all children, get back exact new desired target Vec<ExchangeOrder>
-			let raw: Vec<(Uuid, std::result::Result<Option<Vec<ExchangeOrder<LimitOrder>>>, algo::Error>)> =
-				futures_util::future::join_all(self.inner.iter_mut().map(|limit| {
-					let id = limit.id();
-					async move { (id, limit.next().await ) }
-				}))
-				.await;
+			let raw: Vec<(Uuid, std::result::Result<Option<Vec<ExchangeOrder<LimitOrder>>>, algo::Error>)> = futures_util::future::join_all(self.inner.iter_mut().map(|limit| {
+				let id = limit.id();
+				async move { (id, limit.next().await) }
+			}))
+			.await;
 
 			let mut desired: AHashMap<Uuid, Arc<Vec<ExchangeOrder<LimitOrder>>>> = AHashMap::default();
 			for (id, result) in raw {
@@ -99,6 +95,7 @@ impl Executor {
 			//DO: for each, calculate (expected-impact-on-the-book / necessary_rate[^1])
 			//[^1] to compare apple to apple, we reuse `necessary_rate` (min size/time to expect to fill). Think about it, - with all same, if one algo wants larger size than another, it's likely to be more important. So don't fight the implications trying to equal all out, - execute on user intent.
 			//HACK: skipped the step; hardcoding expected_impact is 0 for all, no filtering //TODO!!!!: .
+			//
 
 			//DO: now look at the matching hashmap of our order_sink, and see if any are above/below quota.
 			todo!();
@@ -106,8 +103,8 @@ impl Executor {
 			//DO: when taking a mask against existing, should have a grace premia for both exact price values, and unfilled size.
 
 			//DO: in both cases, we randomly select orders to remove/add.
-      // // won't lead to cache misses as we only do this on mismatch
-      // // Also, don't forget to attach the Uuid of the parent CL when submitting
+			// // won't lead to cache misses as we only do this on mismatch
+			// // Also, don't forget to attach the Uuid of the parent CL when submitting
 		}
 
 		// Forcing
@@ -120,7 +117,11 @@ impl Executor {
 }
 impl Default for Executor {
 	fn default() -> Self {
-		Self { inner: Vec::default(), order_sink: AHashMap::default(), order_cache: AHashMap::default() }
+		Self {
+			inner: Vec::default(),
+			order_sink: AHashMap::default(),
+			order_cache: AHashMap::default(),
+		}
 	}
 }
 impl Component for Executor {
@@ -139,20 +140,25 @@ impl Component for Executor {
 
 pub struct RoutingHub {
 	assets: AHashMap<Asset, Executor>,
-	streams: StreamMap<Asset, AssetStream>,
+	ticks: FuturesUnordered<AssetTick>,
 	command_queue: Vec<Commands>,
 	state: ComponentState,
 }
 impl RoutingHub {
-	/// Awaits until any asset's limits produce results after a book tick.
-	/// Returns the asset and all limit results for that tick.
-	pub async fn next(&mut self) -> (Asset, Vec<LimitStepResult>) {
+	/// Awaits until any asset's book ticks, then drives that asset's executor.
+	pub async fn next(&mut self) -> Asset {
 		self.apply_commands().await;
-		if self.streams.is_empty() {
+		if self.ticks.is_empty() {
 			std::future::pending::<()>().await;
 			unreachable!()
 		}
-		self.streams.next().await.expect("StreamMap yielded None despite non-empty map")
+		let asset = self.ticks.next().await.expect("FuturesUnordered yielded None despite non-empty set");
+		if let Some(executor) = self.assets.get_mut(&asset) {
+			if let Err(e) = executor.tick().await {
+				tracing::error!(%asset, "Executor::tick() failed: {e:?}");
+			}
+		}
+		asset
 	}
 
 	async fn apply_commands(&mut self) {
@@ -173,7 +179,7 @@ impl RoutingHub {
 					let limits = self.assets.get_mut(&asset).expect("just inserted");
 					let limit = ConceptualLimit::from_args(args.clone(), book);
 					info!(id = %limit.id, "New ConceptualLimit added");
-					limits.insert(limit);
+					limits.push(limit);
 					dirty.insert(asset);
 				}
 				Commands::Adj { id, args } =>
@@ -183,7 +189,7 @@ impl RoutingHub {
 								Ok(()) => info!(%id, "ConceptualLimit adjusted"),
 								Err(e) => tracing::error!(%id, "adjustment failed: {e}"),
 							}
-							limits.insert(limit);
+							limits.push(limit);
 							dirty.insert(*asset);
 							break;
 						}
@@ -215,12 +221,11 @@ impl RoutingHub {
 
 			if limits.is_empty() {
 				self.assets.remove(&asset);
-				self.streams.remove(&asset);
 				info!(asset = %asset, "No limits remaining — asset removed");
 				continue;
 			}
 
-			self.rebuild_asset_stream(asset).await;
+			self.push_asset_tick(asset).await;
 		}
 	}
 
@@ -229,23 +234,12 @@ impl RoutingHub {
 		self.command_queue.push(cmd);
 	}
 
-	async fn rebuild_asset_stream(&mut self, asset: Asset) {
-		let limits = self.assets.get(&asset).expect("called for existing asset");
+	async fn push_asset_tick(&mut self, asset: Asset) {
 		let book = de_data::book(asset).await;
-		let cloned_limits: Vec<ConceptualLimit> = limits.iter().cloned().collect();
-
-		let stream = futures_util::stream::unfold((book, cloned_limits), |(bk, mut limits)| async move {
-			bk.tick().await;
-
-			let mut results: Vec<LimitStepResult> = Vec::with_capacity(limits.len());
-			for limit in &mut limits {
-				let result = limit.next().await;
-				results.push((limit.id, result));
-			}
-			Some((results, (bk, limits)))
-		});
-
-		self.streams.insert(asset, Box::pin(stream));
+		self.ticks.push(Box::pin(async move {
+			book.tick().await;
+			asset
+		}));
 	}
 }
 
@@ -253,7 +247,7 @@ impl Default for RoutingHub {
 	fn default() -> Self {
 		let mut hub = Self {
 			assets: AHashMap::default(),
-			streams: StreamMap::default(),
+			ticks: FuturesUnordered::default(),
 			command_queue: Vec::default(),
 			state: ComponentState::default(),
 		};
@@ -302,15 +296,15 @@ trait LimitSetExt {
 }
 impl LimitSetExt for Executor {
 	fn take_by_id(&mut self, id: Uuid) -> Option<ConceptualLimit> {
-		let limit = self.iter().find(|l| l.id == id).cloned()?;
-		self.remove(&limit);
-		Some(limit)
+		let pos = self.iter().position(|l| l.id == id)?;
+		Some(self.swap_remove(pos))
 	}
 
 	fn remove_by_id(&mut self, id: Uuid) -> bool {
-		let Some(limit) = self.iter().find(|l| l.id == id).cloned() else {
+		let Some(pos) = self.iter().position(|l| l.id == id) else {
 			return false;
 		};
-		self.remove(&limit)
+		self.swap_remove(pos);
+		true
 	}
 }

@@ -182,20 +182,8 @@ async fn main() -> Result<()> {
 			loop {
 				//dbg: not the place for it, - we shouldn't
 				tokio::select! {
-					(asset, results) = routing_hub.next() => {
-						for (id, result) in results {
-							match &result {
-								Ok(Some(orders)) => {
-									for order in orders {
-										info!(%asset, %id, ?order, "produced order");
-									}
-								}
-								Ok(None) => {}
-								Err(e) => {
-									tracing::error!(%asset, %id, "ConceptualLimit::next() failed: {e}");
-								}
-							}
-						}
+					asset = routing_hub.next() => {
+						info!(%asset, "executor ticked");
 					}
 
 					result = subscriber.next::<de_routing::Commands>() => {

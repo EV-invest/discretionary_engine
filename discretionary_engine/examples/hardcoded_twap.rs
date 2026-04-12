@@ -1,14 +1,17 @@
+use std::time::Duration;
+
 use color_eyre::eyre::{Context, ContextCompat, Result, bail};
+use discretionary_engine::config::{LiveSettings, SettingsFlags};
 use nautilus_bybit::{
 	common::enums::{BybitPositionSide, BybitProductType},
 	http::{client::BybitRawHttpClient, query::BybitPositionListParamsBuilder},
 };
+use secrecy::ExposeSecret;
 use v_exchanges::Ticker;
 use v_utils::{
 	io::{ConfirmResult, confirmation},
 	trades::{Side, Timeframe},
 };
-
 
 #[derive(clap::Parser, Debug)]
 struct Args {
@@ -27,6 +30,8 @@ struct Args {
 	lots: u8,
 	#[arg(long)]
 	reduce_only: bool,
+	#[command(flatten)]
+	settings: SettingsFlags,
 }
 
 #[tokio::main]
@@ -35,11 +40,14 @@ async fn main() -> Result<()> {
 	use clap::Parser;
 	let args = Args::parse();
 
-	let api_key = std::env::var("BYBIT_TIGER_FULL_KEY").context("BYBIT_TIGER_FULL_KEY not set")?;
-	let api_secret = std::env::var("BYBIT_TIGER_FULL_SECRET").context("BYBIT_TIGER_FULL_SECRET not set")?;
+	let live_settings = LiveSettings::new(args.settings, Duration::from_secs(5)).context("Failed to load config")?;
+	let config = live_settings.config()?;
+	let exchange_name = args.ticker.exchange_name.clone();
+	let exchange_config = config.get_exchange(exchange_name)?;
+	let api_key = exchange_config.api_pubkey.clone();
+	let api_secret = exchange_config.api_secret.expose_secret().to_string();
 
-	let client = BybitRawHttpClient::with_credentials(api_key, api_secret, None, None, None, None, None, None, None)
-		.context("Failed to create Bybit HTTP client")?;
+	let client = BybitRawHttpClient::with_credentials(api_key, api_secret, None, None, None, None, None, None, None).context("Failed to create Bybit HTTP client")?;
 
 	// "BTC-USDT.p" -> "BTCUSDT"
 	let symbol = {

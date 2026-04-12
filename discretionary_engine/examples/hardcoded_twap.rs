@@ -352,7 +352,11 @@ async fn chase_lot(
 			if resp.ret_code != 0 {
 				bail!("Market fallback failed: {} (code: {})", resp.ret_msg, resp.ret_code);
 			}
-			println!("  -> market fallback: id={:?}", resp.result.order_id);
+			println!(
+				"  [{}] -> market executed {qty:.qty_decimals$} (id={:?})",
+				chrono::Local::now().format("%H:%M:%S"),
+				resp.result.order_id
+			);
 			break;
 		}
 
@@ -398,7 +402,11 @@ async fn chase_lot(
 						for report in reports {
 							if report.client_order_id.as_ref().map(|c| c.to_string()) == Some(order_link_id.clone()) {
 								venue_order_id = Some(report.venue_order_id);
-								if report.filled_qty.as_f64() >= qty - qty_step * 0.5 {
+								let fq = report.filled_qty.as_f64();
+								if fq > 0.0 {
+									println!("  [{}] -> limit fill: {fq:.qty_decimals$} @ {:?}", chrono::Local::now().format("%H:%M:%S"), report.avg_px);
+								}
+								if fq >= qty - qty_step * 0.5 {
 									filled = true;
 								}
 							}
@@ -407,7 +415,7 @@ async fn chase_lot(
 					NautilusWsMessage::FillReports(fills) => {
 						for fill in &fills {
 							if fill.client_order_id.as_ref().map(|c| c.to_string()) == Some(order_link_id.clone()) {
-								println!("  -> fill: {} @ {}", fill.last_qty.as_f64(), fill.last_px.as_f64());
+								println!("  [{}] -> fill: {} @ {}", chrono::Local::now().format("%H:%M:%S"), fill.last_qty.as_f64(), fill.last_px.as_f64());
 							}
 						}
 					}
@@ -428,7 +436,7 @@ async fn chase_lot(
 							if resp.ret_code != 0 {
 								bail!("Market fallback failed: {} (code: {})", resp.ret_msg, resp.ret_code);
 							}
-							println!("  -> PostOnly rejected, market fallback: id={:?}", resp.result.order_id);
+							println!("  [{}] -> PostOnly rejected, market executed {qty:.qty_decimals$} (id={:?})", chrono::Local::now().format("%H:%M:%S"), resp.result.order_id);
 							filled = true;
 						}
 					}

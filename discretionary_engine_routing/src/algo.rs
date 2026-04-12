@@ -1,6 +1,6 @@
 use std::hash::{Hash, Hasher};
 
-use ahash::{AHashMap, AHashSet};
+use ahash::AHashMap;
 use miette::Result;
 use uuid::Uuid;
 use v_exchanges::{ExchangeName, ExchangeOrder, Symbol, orders::LimitOrder};
@@ -31,7 +31,7 @@ pub struct ConceptualLimitChangeable {
 	pub time: jiff::SignedDuration,
 }
 
-//#[derive(clap::ValueEnum, Clone, Debug, serde::Deserialize, serde::Serialize)]
+//#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, clap::ValueEnum)]
 //pub enum ConceptualLimitTermination {
 //	/// Allotted time has run out
 //	Timeout,
@@ -61,7 +61,7 @@ pub struct ConceptualLimit {
 	/// total per-exchange qty fill value
 	__book: BookRef,
 	__filled: AHashMap<ExchangeName, f64>,
-	__prev: AHashSet<ExchangeOrder<LimitOrder>>,
+	__prev: Vec<ExchangeOrder<LimitOrder>>,
 }
 impl ConceptualLimit {
 	pub fn adjust(&mut self, adj: ConceptualLimitChangeable) -> std::result::Result<(), crate::InvalidRoutingError> {
@@ -91,7 +91,7 @@ impl ConceptualLimit {
 		let book = self.__book.snapshot();
 
 		//HACK: the dumbest Chase Limit imaginable
-		//TODO!!!!: make proper
+		//TODO: make proper Iceberg protocol
 		let price = match self.side {
 			Side::Buy => {
 				let best_bid = book.bids.iter().map(|(p, _)| *p).fold(f64::NEG_INFINITY, f64::max);
@@ -135,7 +135,7 @@ impl ConceptualLimit {
 			id: Uuid::now_v7(),
 			__book: book,
 			__filled: AHashMap::default(),
-			__prev: AHashSet::default(),
+			__prev: Vec::default(),
 		}
 	}
 }

@@ -83,6 +83,12 @@ impl<O: PartialEq> PartialEq for ExecOrder<O> {
 	}
 }
 
+impl<O> ExecOrder<O> {
+	pub fn with_parent(inner: ExchangeOrder<O>, parent: Uuid) -> Self {
+		Self { inner, state: OrderState::default(), __filled: 0.0, __keyed: MyKey::new(Uuid::now_v7(), Some(parent)) }
+	}
+}
+
 impl<O> Keyed for ExecOrder<O> {
 	type Key = Uuid;
 	fn keys(&self) -> MyKey<Uuid> {

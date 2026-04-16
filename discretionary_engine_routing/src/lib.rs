@@ -47,7 +47,7 @@ pub async fn publish(cmd: Commands, redis_port: u16) -> color_eyre::eyre::Result
 	Ok(())
 }
 
-#[derive(Debug, derive_more::Deref, derive_more::DerefMut)]
+#[derive(Debug, Default, derive_more::Deref, derive_more::DerefMut)]
 /// Per-Asset Executor
 ///
 /// Takes care of all the execution on a single asset
@@ -116,7 +116,7 @@ impl Executor {
 
 pub struct RoutingHub {
 	assets: AHashMap<Asset, Executor>,
-	ticks: FuturesUnordered<AssetTick>,
+	listen_books: FuturesUnordered<AssetTick>,
 	command_queue: Vec<Commands>,
 	state: ComponentState,
 }
@@ -127,17 +127,20 @@ impl RoutingHub {
 		self.apply_commands().await;
 
 		// `CL`s don't make progress if book hasn't updated since last time. So this here is when all are done and we just sit and wait for any to be able to make progress when book updates again.
-		if self.ticks.is_empty() {
+		if self.listen_books.is_empty() {
 			std::future::pending::<()>().await;
 			unreachable!()
 		}
-		let asset = self.ticks.next().await.expect("FuturesUnordered yielded None despite non-empty set");
+		let book_upd_on: Asset = self.listen_books.next().await.expect("FuturesUnordered yielded None despite non-empty set");
 
-		self.push_asset_tick(asset).await;
-		let executor = self.assets.get_mut(&asset).expect("ticked asset has no executor");
-		if let Err(e) = executor.tick().await {
-			tracing::error!(%asset, "Executor::tick() failed: {e:?}");
-		}
+		//self.push_asset_tick(asset).await;
+		//let executor = self.assets.get_mut(&asset).expect("ticked asset has no executor");
+		////XXX: wtf. This makes zero sense. Instead just run all. The only things that needs to happen here is communication back to `Protocol`s about `ConceptualLimit`s progressing. That's literally it. And even that maybe could be just directly looked up by them.
+		//if let Err(e) = executor.tick().await {
+		//	tracing::error!(%asset, "Executor::tick() failed: {e:?}");
+		//}
+
+		todo!();
 	}
 
 	async fn apply_commands(&mut self) {
@@ -213,9 +216,12 @@ impl RoutingHub {
 		self.command_queue.push(cmd);
 	}
 
+	#[deprecated(
+		note = "this makes no sense. Reimplement from zero. Target usability: expose method to insert an Asset into shared DataHub, to updates from which we're listening directly (using some unsafe trickery)"
+	)]
 	async fn push_asset_tick(&mut self, asset: Asset) {
 		let book = de_data::book(asset).await;
-		self.ticks.push(Box::pin(async move {
+		self.listen_books.push(Box::pin(async move {
 			book.tick().await;
 			asset
 		}));
@@ -240,15 +246,6 @@ trait LimitSetExt {
 }
 #[derive(Debug)]
 enum ExecutorError {}
-impl Default for Executor {
-	fn default() -> Self {
-		Self {
-			inner: Vec::default(),
-			order_sink: AHashMap::default(),
-			order_cache: AHashMap::default(),
-		}
-	}
-}
 impl Component for Executor {
 	fn component_id(&self) -> ComponentId {
 		todo!()
@@ -267,7 +264,7 @@ impl Default for RoutingHub {
 	fn default() -> Self {
 		let mut hub = Self {
 			assets: AHashMap::default(),
-			ticks: FuturesUnordered::default(),
+			listen_books: FuturesUnordered::default(),
 			command_queue: Vec::default(),
 			state: ComponentState::default(),
 		};

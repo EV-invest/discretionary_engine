@@ -231,6 +231,11 @@ keeps track of both exact book, and tape. Tape delta are included alongside book
 
 Every client requests access to a number of history chunks, provided separately. Chunks are taken exactly at the snapshot boundary (rn 15m)
 
+#### Performance notes
+Internal state is `BTreeMap<Price, f32>` where `Price` is a fixed-point `i64` (units of 10^-8). Fixed-point is necessary because floats can't be `BTreeMap` keys (`f64` doesn't implement `Ord`), and even with a wrapper, float representation errors cause the same tick to produce different keys after JSON round-tripping. Fixed-point + tick-size rounding on ingestion eliminates both problems.
+
+The map structure is not the bottleneck. A BTreeMap update on a 500-level book is ~100-200ns; the fast Binance book feed ticks every 10ms — three orders of magnitude of headroom. Real bottlenecks are the delta log write (disk I/O) and snapshot serialization at chunk boundaries.
+
 ### additional
 Primitives for accessing it are defined in this module, but all awaiting is done by clients, - these are thin wrappers.
 

@@ -4,7 +4,7 @@
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url = "github:numtide/flake-utils";
     pre-commit-hooks.url = "github:cachix/git-hooks.nix";
-    v_flakes.url = "github:valeratrades/v_flakes?ref=v1.5";
+    v_flakes.url = "github:valeratrades/v_flakes?ref=v1.6.9";
   };
 
   outputs = { self, nixpkgs, rust-overlay, flake-utils, pre-commit-hooks, v_flakes, ... }:
@@ -44,6 +44,7 @@
         github = v_flakes.github {
           inherit pkgs pname rs;
           enable = true;
+          excludeDirs = [ "libs/nautilus_trader" ];
           lastSupportedVersion = "nightly-2025-10-12";
           jobs.default = true;
           excalidraw."docs/arch.excalidraw".standalone = true;
@@ -88,7 +89,7 @@
             rs.shellHook +
             readme.shellHook +
             ''
-              cp -f ${(v_flakes.files.treefmt) {inherit pkgs;}} ./.treefmt.toml
+              cp -f ${(v_flakes.files.treefmt) {inherit pkgs; extend = { global.excludes.augment = [ "libs/**" ]; };}} ./.treefmt.toml
             '';
 
           env = {

@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use color_eyre::eyre::Result;
-use discretionary_engine_macros::ProtocolWrapper;
+use de_macros::ProtocolWrapper;
 use futures_util::StreamExt;
 use serde_json::Value;
 use tokio::{sync::mpsc, task::JoinSet};
@@ -46,7 +46,7 @@ impl ProtocolTrait for ApproachingLimitWrapper {
 								tx.send(price).await.unwrap();
 							},
 						Err(e) => {
-							println!("Failed to parse message as JSON: {}", e);
+							println!("Failed to parse message as JSON: {e}");
 						}
 					}
 				}
@@ -69,7 +69,7 @@ impl ProtocolTrait for ApproachingLimitWrapper {
 		Ok(())
 	}
 
-	fn update_params(&self, new_params: ApproachingLimit) -> Result<()> {
+	fn set_params(&self, new_params: ApproachingLimit) -> Result<()> {
 		*self.0.write().unwrap() = new_params;
 		Ok(())
 	}

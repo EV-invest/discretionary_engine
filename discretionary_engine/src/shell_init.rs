@@ -9,6 +9,17 @@ pub struct ShellInitArgs {
 	shell: Shell,
 }
 
+pub fn output(args: ShellInitArgs) {
+	let shell = args.shell;
+	let s = format!(
+		r#"{}
+{}"#,
+		shell.aliases(EXE_NAME),
+		shell.completions(),
+	);
+
+	println!("{s}");
+}
 #[derive(Clone, Copy, Debug, Display, FromStr)]
 enum Shell {
 	Dash,
@@ -37,22 +48,10 @@ alias de="{exe_name}"
 
 	fn completions(&self) -> String {
 		let mut cmd = Cli::command();
-		let mut buffer = Vec::new();
+		let mut buffer = Vec::default();
 		let shell = self.to_clap_shell();
 		clap_complete::generate(shell, &mut cmd, EXE_NAME, &mut buffer);
 
 		String::from_utf8(buffer).unwrap_or_else(|_| String::from("# Failed to generate completions"))
 	}
-}
-
-pub fn output(args: ShellInitArgs) {
-	let shell = args.shell;
-	let s = format!(
-		r#"{}
-{}"#,
-		shell.aliases(EXE_NAME),
-		shell.completions(),
-	);
-
-	println!("{s}");
 }

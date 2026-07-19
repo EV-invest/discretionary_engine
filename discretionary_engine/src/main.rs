@@ -1,16 +1,15 @@
+#![allow(warnings)]
 #![allow(clippy::comparison_to_empty)]
 #![allow(clippy::get_first)]
 #![allow(clippy::len_zero)] // wait, so are the ones in Cargo.toml not enough?
 #![feature(trait_alias)]
 #![feature(type_changing_struct_update)]
 #![feature(stmt_expr_attributes)]
+#![feature(error_generic_member_access)]
 
-mod adjust_pos;
-mod bybit_common;
 mod chase_limit;
 pub mod config;
 pub mod exchange_apis;
-mod nuke;
 pub mod positions;
 pub mod protocols;
 mod risk;
@@ -30,15 +29,16 @@ use positions::*;
 use tokio::{sync::mpsc, task::JoinSet};
 use tracing::{info, instrument};
 use v_utils::{
+	log,
 	trades::{Side, Timeframe},
 	utils::exit_on_error,
 };
 
-pub static MAX_CONNECTION_FAILURES: u32 = 10;
 pub static MUT_CURRENT_CONNECTION_FAILURES: AtomicU32 = AtomicU32::new(0);
 
+pub static MAX_CONNECTION_FAILURES: u32 = 10;
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
+#[command(author, version = concat!(env!("CARGO_PKG_VERSION"), " (", env!("GIT_HASH"), ")"), about, long_about = None)]
 struct Cli {
 	#[command(subcommand)]
 	command: Commands,
@@ -54,17 +54,44 @@ struct Cli {
 enum Commands {
 	/// Start the main program
 	Run(PositionArgs),
-	/// Adjust an existing position size smartly
-	AdjustPos(adjust_pos::AdjustPosArgs),
-	/// Close position completely
-	Nuke(nuke::NukeArgs),
+	/// Long-running service: initializes exchanges, starts RoutingHub, listens for commands
+	Daemon,
 	/// Risk management commands
 	Risk {
 		#[command(subcommand)]
 		command: risk::RiskCommands,
 	},
+	/// Strategy commands (nautilus-based)
+	Strategy {
+		#[command(subcommand)]
+		command: StrategyCommands,
+	},
+	/// Routing commands (fire-and-forget, publishes to running service via Redis)
+	Routing {
+		#[command(subcommand)]
+		command: de_routing::Commands,
+	},
 	/// Shell aliases and completions. Usage: `discretionary_engine init <shell> | source`
 	Init(shell_init::ShellInitArgs),
+}
+#[derive(Subcommand)]
+enum StrategyCommands {
+	/// Start the strategy listener
+	Start,
+	/// Submit a position request to the running strategy
+	Submit(StrategySubmitArgs),
+}
+#[derive(Args, Clone, Debug)]
+struct StrategySubmitArgs {
+	/// Target change in exposure. So positive for buying, negative for selling.
+	#[arg(short, long, allow_hyphen_values = true)]
+	size_usdt: f64,
+	/// _only_ the coin name itself. e.g. "BTC" or "ETH".
+	#[arg(short, long)]
+	coin: String,
+	/// protocols parameters, in the format of "<protocol>-<params>", e.g. "ts:p0.5".
+	#[arg(short, long)]
+	protocols: Vec<String>,
 }
 #[derive(Args, Clone, Debug)]
 struct PositionArgs {
@@ -85,12 +112,8 @@ struct PositionArgs {
 	#[arg(short, long)]
 	followup_protocols: Vec<String>,
 }
-
-// TODO: change to initializing exchange sockets once, then just have a loop listening on localhost, that accepts new positions or modification requests.
-
 #[tokio::main]
 async fn main() -> Result<()> {
-	color_eyre::install()?;
 	let cli = Cli::parse();
 
 	// Init doesn't require config
@@ -102,35 +125,37 @@ async fn main() -> Result<()> {
 	let live_settings = match LiveSettings::new(cli.settings, Duration::from_secs(5)) {
 		Ok(ls) => Arc::new(ls),
 		Err(e) => {
-			eprintln!("Loading config failed: {}", e);
+			eprintln!("Loading config failed: {e}");
 			std::process::exit(1);
 		}
 	};
 
-	// Handle risk commands early - they don't need the full exchange infrastructure
+	// Handle risk/routing commands early - they don't need the full exchange infrastructure
 	if let Commands::Risk { command } = cli.command {
-		utils::init_subscriber(None);
+		v_utils::clientside!(Some("risk"));
 		exit_on_error(match command {
 			risk::RiskCommands::Size(args) => risk::size_main(live_settings, args).await,
 			risk::RiskCommands::Balance => risk::balance_main(live_settings).await,
 		});
 		return Ok(());
 	}
+	if let Commands::Routing { command } = cli.command {
+		v_utils::clientside!(Some("routing"));
+		let redis_port = live_settings.config()?.redis_port;
+		exit_on_error(de_routing::publish(command, redis_port).await);
+		return Ok(());
+	}
 
 	// Validate positions_dir exists
-	let initial_config = live_settings.initial();
+	let initial_config = live_settings.config()?;
 	std::fs::create_dir_all(&initial_config.positions_dir).wrap_err_with(|| format!("Failed to create positions directory at {:?}", initial_config.positions_dir))?;
 	// Create XDG state directory for logs and other state
 	let state_dir = dirs::state_dir()
 		.unwrap_or_else(|| dirs::home_dir().expect("Could not determine home directory").join(".local/state"))
 		.join(config::EXE_NAME);
-	std::fs::create_dir_all(&state_dir).wrap_err_with(|| format!("Failed to create state directory at {:?}", state_dir))?;
-	let log_path = match std::env::var("TEST_LOG") {
-		Ok(_) => None,
-		Err(_) => Some(state_dir.join(".log").into_boxed_path()),
-	};
-	utils::init_subscriber(log_path);
-	let mut js = JoinSet::new();
+	std::fs::create_dir_all(&state_dir).wrap_err_with(|| format!("Failed to create state directory at {state_dir:?}"))?;
+	v_utils::clientside!(Some("daemon"));
+	let mut js = JoinSet::default();
 	let exchanges_arc = Arc::new(
 		Exchanges::init(live_settings.clone())
 			.await
@@ -138,28 +163,72 @@ async fn main() -> Result<()> {
 	);
 	let tx = hub::init_hub(live_settings.clone(), &mut js, exchanges_arc.clone());
 
-	exit_on_error(match cli.command {
+	match cli.command {
 		Commands::Run(args) => command_new(args, live_settings.clone(), tx, exchanges_arc).await,
-		Commands::AdjustPos(adjust_pos_args) => adjust_pos::main(adjust_pos_args, live_settings.clone(), cli.testnet).await,
-		Commands::Nuke(nuke_args) => nuke::main(nuke_args, live_settings.clone(), cli.testnet).await,
-		Commands::Risk { .. } | Commands::Init(_) => unreachable!(),
-	});
+		Commands::Daemon => {
+			let config = live_settings.config()?;
+			let redis_port = config.redis_port;
 
-	Ok(())
+			de_core::config::init_exchanges(config.exchanges.clone());
+			let mut routing_hub = de_routing::RoutingHub::default();
+
+			let consumer_name = format!("routing-{}", std::process::id());
+			let mut conn = de_core::redis_bus::connect(redis_port).await?;
+			let mut subscriber = de_core::redis_bus::StreamSubscriber::try_new(&mut conn, de_routing::STREAM_KEY, de_routing::CONSUMER_GROUP, consumer_name).await?;
+
+			info!("Service running, listening on Redis port {redis_port}...");
+
+			//LOOP: main loop
+			loop {
+				//dbg: not the place for it, - we shouldn't
+				tokio::select! {
+					_ = routing_hub.next() => {}
+
+					result = subscriber.next::<de_routing::Commands>() => {
+						match result {
+							Ok(Some(cmd)) => {
+								tracing::info!("received routing command");
+								routing_hub.push_command(cmd);
+							}
+							Ok(None) => {} //Q: should we timeout? //TODO: check if this degrades perf at all
+							Err(e) => panic!("Error reading routing command: {e:?}"),
+						}
+					}
+
+					_ = tokio::signal::ctrl_c() => {
+						info!("Service shutting down...");
+						return Ok(());
+					}
+				}
+			}
+			unreachable!()
+		}
+		Commands::Strategy { command } => {
+			let redis_port = live_settings.config()?.redis_port;
+			match command {
+				StrategyCommands::Start => de_strategy::commands::start_listener(redis_port).await,
+				StrategyCommands::Submit(args) => {
+					let submit_args = de_strategy::commands::SubmitArgs {
+						size_usdt: args.size_usdt,
+						coin: args.coin,
+						protocols: args.protocols,
+						testnet: cli.testnet,
+					};
+					de_strategy::commands::submit(submit_args, redis_port).await
+				}
+			}
+		}
+		Commands::Risk { .. } | Commands::Routing { .. } | Commands::Init(_) => unreachable!(),
+	}
 }
+
+// TODO: change to initializing exchange sockets once, then just have a loop listening on localhost, that accepts new positions or modification requests.
 
 #[instrument(skip(live_settings, tx, exchanges_arc))]
 async fn command_new(position_args: PositionArgs, live_settings: Arc<LiveSettings>, tx: mpsc::Sender<PositionToHub>, exchanges_arc: Arc<Exchanges>) -> Result<()> {
 	// Currently here mostly for purposes of checking server connectivity.
-	let balance = match Exchanges::compile_total_balance(exchanges_arc.clone(), live_settings.clone()).await {
-		Ok(b) => b,
-		Err(e) => {
-			eprintln!("Failed to get balance: {}", e);
-			std::process::exit(1);
-		}
-	};
-	info!("Total balance: {}", balance);
-	println!("Current total available balance: {}", balance);
+	let balance = exit_on_error(Exchanges::compile_total_balance(exchanges_arc.clone(), live_settings.clone()).await);
+	log!("Current total available balance: {balance}");
 
 	let (side, target_size) = match position_args.size_usdt {
 		s if s > 0.0 => (Side::Buy, s),

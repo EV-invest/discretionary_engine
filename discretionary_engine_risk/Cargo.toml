@@ -1,5 +1,5 @@
 [package]
-name = "discretionary_engine_risk"
+name = "de_risk"
 version = "1.0.0"
 edition = "2024"
 
@@ -10,22 +10,30 @@ homepage = "https://github.com/valeratrades/discretionary_engine"
 authors = ["valeratrades"]
 description = "Risk-management library for discretionary_engine"
 readme = "README.md"
+build = "build.rs"
 
 [package.metadata.docs.rs]
 cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 
 [dependencies]
-clap = { workspace = true }
-color-eyre = { workspace = true }
-jiff = { workspace = true }
-secrecy = { workspace = true }
-strum = { workspace = true }
-tracing = { workspace = true }
+ahash = { workspace = true, features = ["serde"] }
+clap.workspace = true
+color-eyre.workspace = true
+de_core.workspace = true
+jiff.workspace = true
+miette.workspace = true
+smart-default.workspace = true
+strum.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["full", "signal"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 v_exchanges = { workspace = true, features = ["binance", "bybit", "kucoin", "mexc"] }
 v_utils = { workspace = true, features = ["trades"] }
 
 [dev-dependencies]
-insta = { workspace = true }
+insta.workspace = true
+snapshot_fonts.workspace = true
 
 [lints]
 workspace = true

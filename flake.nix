@@ -1,37 +1,55 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    rust-overlay.url = "github:oxalica/rust-overlay";
-    flake-utils.url = "github:numtide/flake-utils";
-    pre-commit-hooks.url = "github:cachix/git-hooks.nix/ca5b894d3e3e151ffc1db040b6ce4dcc75d31c37";
-    v-utils.url = "github:valeratrades/.github/v1.2.0";
+    v_flakes.url = "github:valeratrades/v_flakes?ref=v1.6";
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils, pre-commit-hooks, v-utils, ... }:
+  outputs = { self, v_flakes, ... }:
+    let
+      inherit (v_flakes) flake-utils pre-commit-hooks;
+    in
     flake-utils.lib.eachDefaultSystem (system:
       let
-        overlays = builtins.trace "flake.nix sourced" [ (import rust-overlay) ];
-        pkgs = import nixpkgs {
-          inherit system overlays;
-        };
-        rust = pkgs.rust-bin.selectLatestNightlyWith (toolchain: toolchain.default.override {
-          extensions = [ "rust-src" "rust-analyzer" "rust-docs" "rustc-codegen-cranelift-preview" ];
-        });
-        pre-commit-check = pre-commit-hooks.lib.${system}.run (v-utils.files.preCommit { inherit pkgs; });
+        pkgs = import v_flakes.default_nixpkgs { inherit system; };
+        rust = v_flakes.rs.default_nightly system;
+        pre-commit-check = pre-commit-hooks.lib.${system}.run (v_flakes.files.preCommit { inherit pkgs; });
         manifest = (pkgs.lib.importTOML ./discretionary_engine/Cargo.toml).package;
         pname = manifest.name;
         stdenv = pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv;
 
-        github = v-utils.github {
-          inherit pkgs pname;
-          lastSupportedVersion = "nightly-2025-10-12";
-          jobsErrors = [ "rust-tests" ];
-          jobsWarnings = [ "rust-doc" "rust-clippy" "rust-machete" "rust-sorted" "rust-sorted-derives" "tokei" ];
-          jobsOther = [ "loc-badge" ];
-          langs = [ "rs" ];
-          labels.extra = [{ name = "rm"; color = "0000ff"; }];
+        rs = v_flakes.rs {
+          inherit pkgs rust;
+          cranelift = false; # cranelift disabled due to aws-lc-rs incompatibility
+          tracey = false; # feels raw. And kinda pointless, as I don't see shit enforced. Might not understand it well enough, but starting to think it superflous
+          build = {
+            enable = true;
+            workspace = {
+              "./discretionary_engine" = [ "git_version" "log_directives" ];
+              "./discretionary_engine_strategy" = [ "git_version" "log_directives" ];
+            };
+          };
+          style = {
+            format = true;
+            modules = {
+              no_chrono = "false"; #dbg: used in code that's to be deprecated anyways
+              prefer_ahash = "true";
+            };
+          };
         };
-        readme = v-utils.readme-fw { inherit pkgs pname; lastSupportedVersion = "nightly-1.92"; rootDir = ./.; licenses = [{ name = "Blue Oak 1.0.0"; outPath = "LICENSE"; }]; badges = [ "msrv" "crates_io" "docs_rs" "loc" "ci" ]; };
+        github = v_flakes.github {
+          inherit pkgs pname rs;
+          enable = true;
+          excludeDirs = [ "libs/nautilus_trader" ];
+          lastSupportedVersion = "nightly-2025-10-12";
+          jobs.default = true;
+          excalidraw."docs/arch.excalidraw".standalone = true;
+          labels.extra = [
+            # I think I should be grouping labels through color, right
+            { name = "rm"; color = "0000ff"; description = "risk management side"; }
+            { name = "integrations"; color = "20603D"; description = "all things related to how we access the underlying "; }
+          ];
+        };
+        readme = v_flakes.readme-fw { inherit pkgs pname; defaults = true; lastSupportedVersion = "nightly-1.92"; rootDir = ./.; badges = [ "msrv" "crates_io" "docs_rs" "loc" "ci" ]; };
+
       in
       {
         packages =
@@ -43,7 +61,7 @@
             };
           in
           {
-            default = rustPlatform.buildRustPackage rec {
+            default = rustPlatform.buildRustPackage {
               inherit pname;
               version = manifest.version;
 
@@ -62,16 +80,10 @@
           shellHook =
             pre-commit-check.shellHook +
             github.shellHook +
+            rs.shellHook +
+            readme.shellHook +
             ''
-              cp -f ${v-utils.files.licenses.blue_oak} ./LICENSE
-
-              mkdir -p ./.cargo
-              cp -f ${(v-utils.files.treefmt) {inherit pkgs;}} ./.treefmt.toml
-              cp -f ${(v-utils.files.rust.rustfmt {inherit pkgs;})} ./rustfmt.toml
-              # v-utils config disabled due to aws-lc-rs/mold incompatibility - using local config.toml
-              # cp -f ${(v-utils.files.rust.config {inherit pkgs;})} ./.cargo/config.toml
-
-              cp -f ${readme} ./README.md
+              cp -f ${(v_flakes.files.treefmt) {inherit pkgs; extend = { global.excludes.augment = [ "libs/**" ]; };}} ./.treefmt.toml
             '';
 
           env = {
@@ -80,11 +92,11 @@
           };
 
           packages = [
-            mold-wrapped
+            mold
             openssl
             pkg-config
             rust
-          ] ++ pre-commit-check.enabledPackages ++ github.enabledPackages;
+          ] ++ pre-commit-check.enabledPackages ++ github.enabledPackages ++ rs.enabledPackages;
         };
       }
     );

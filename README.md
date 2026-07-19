@@ -23,7 +23,7 @@ This would open a new position on ADA, where:
 #### Configuration
 Config is read from ${HOME}/.config/discretionary_engine.toml by default, but can also be specified via `--config` cli argument.
 
-An example config can be found in ./examples/config.toml
+An example config can be found in ./docs/.readme_assets/examples/config.toml
 
 ## Assumptions
 - strictly one asset per `Position`. No methods for acquiring several assets at once will ever be introduced.
@@ -44,7 +44,7 @@ An example config can be found in ./examples/config.toml
 <br>
 
 <sup>
-	This repository follows <a href="https://github.com/valeratrades/.github/tree/master/best_practices">my best practices</a> and <a href="https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md">Tiger Style</a> (except "proper capitalization for acronyms": (VsrState, not VSRState) and formatting).
+	This repository follows <a href="https://github.com/valeratrades/.github/tree/master/best_practices">my best practices</a> and <a href="https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md">Tiger Style</a> (except "proper capitalization for acronyms": (VsrState, not VSRState) and formatting). For project's architecture, see <a href="./docs/ARCHITECTURE.md">ARCHITECTURE.md</a>.
 </sup>
 
 #### License

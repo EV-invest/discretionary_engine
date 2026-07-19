@@ -3,6 +3,7 @@ use std::{
 	sync::{Arc, RwLock},
 };
 
+use ahash::AHashMap;
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
@@ -23,20 +24,20 @@ impl BinanceOrder {
 		Self { base_info, ..Default::default() }
 	}
 
-	pub fn to_params(&self) -> HashMap<&'static str, String> {
-		let mut params = HashMap::<&'static str, String>::new();
+	pub fn to_params(&self) -> AHashMap<&'static str, String> {
+		let mut params = AHashMap::<&'static str, String>::default();
 		params.insert("symbol", self.base_info.symbol.to_string());
 		params.insert("side", self.base_info.side.to_string());
 		params.insert("quantity", format!("{}", self.base_info.qty_notional));
 
 		let type_params = match &self.base_info.order_type {
 			OrderType::Market => {
-				let mut params = HashMap::<&'static str, String>::new();
+				let mut params = AHashMap::<&'static str, String>::default();
 				params.insert("type", "MARKET".to_string());
 				params
 			}
 			OrderType::StopMarket(sm) => {
-				let mut params = HashMap::<&'static str, String>::new();
+				let mut params = AHashMap::<&'static str, String>::default();
 				params.insert("type", "STOP_MARKET".to_string());
 				params.insert("stopPrice", sm.price.to_string());
 				params

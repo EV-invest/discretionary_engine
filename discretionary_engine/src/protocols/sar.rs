@@ -2,7 +2,7 @@
 use std::str::FromStr;
 
 use color_eyre::eyre::Result;
-use discretionary_engine_macros::ProtocolWrapper;
+use de_macros::ProtocolWrapper;
 use futures_util::StreamExt;
 use serde_json::Value;
 use tokio::{sync::mpsc, task::JoinSet};
@@ -22,7 +22,6 @@ use crate::{
 const BINANCE_TIMEFRAMES: [&str; 19] = [
 	"1s", "5s", "15s", "30s", "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M",
 ];
-
 #[derive(Clone, CompactFormat, Copy, Debug, Default, ProtocolWrapper, derive_new::new)]
 pub struct Sar {
 	start: Percent,
@@ -56,7 +55,7 @@ impl ProtocolTrait for SarWrapper {
 
 				while let Some(msg) = read.next().await {
 					let data = msg.unwrap().into_data();
-					debug!("SAR received websocket klines update: {:?}", data);
+					debug!("SAR received websocket klines update: {data:?}");
 					match serde_json::from_slice::<Value>(&data) {
 						Ok(json) =>
 							if let Some(open_str) = json.get("o") {
@@ -67,7 +66,7 @@ impl ProtocolTrait for SarWrapper {
 								tx.send(Ohlc { open, high, low, close }).await.unwrap();
 							},
 						Err(e) => {
-							println!("Failed to parse message as JSON: {}", e);
+							println!("Failed to parse message as JSON: {e}");
 						}
 					}
 				}
@@ -98,7 +97,7 @@ impl ProtocolTrait for SarWrapper {
 		Ok(())
 	}
 
-	fn update_params(&self, new_params: Sar) -> Result<()> {
+	fn set_params(&self, new_params: Sar) -> Result<()> {
 		*self.0.write().unwrap() = new_params;
 		Ok(())
 	}
@@ -190,8 +189,8 @@ mod tests {
 		let test_data_ohlc = mock_p_to_ohlc(&test_data_p, 10);
 
 		let mut sar_indicator = SarIndicator::init(&init_ohlc, &sar_wrapper.0.read().unwrap());
-		let mut recorded_indicator_values = Vec::new();
-		let mut orders = Vec::new();
+		let mut recorded_indicator_values = Vec::default();
+		let mut orders = Vec::default();
 
 		for (i, ohlc) in test_data_ohlc.into_iter().enumerate() {
 			let maybe_order = sar_indicator.step(ohlc, &sar_wrapper.0.read().unwrap(), &Symbol::default(), Side::Sell);

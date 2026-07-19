@@ -1,4 +1,4 @@
-//! Individual exchange APIs expose methods and frameworks for interacting with their respective exchanges. At this level we have [hub.rs] and [all_exchanges.rs] which interpret the information passed up by the individual exchanges in the manner necessary for the task. [all_exchanges.rs] exposes information for Protocols and Positions, [hub.rs] uses it to construct the optimal execution strategy.
+//! Individual exchange APIs expose methods and frameworks for interacting with their respective exchanges. At this level we have `hub` and `exchanges` which interpret the information passed up by the individual exchanges in the manner necessary for the task. `exchanges` exposes information for Protocols and Positions, `hub` uses it to construct the optimal execution strategy.
 
 pub mod binance;
 pub mod exchanges;
@@ -44,7 +44,7 @@ impl std::str::FromStr for Market {
 			_ if graphemics!(BinanceFutures).contains(&s) => Ok(Market::BinanceFutures),
 			_ if graphemics!(BinanceSpot).contains(&s) => Ok(Market::BinanceSpot),
 			_ if graphemics!(BinanceMargin).contains(&s) => Ok(Market::BinanceMargin),
-			_ => bail!("Unknown market: {}", s),
+			_ => bail!("Unknown market: {s}"),
 		}
 	}
 }

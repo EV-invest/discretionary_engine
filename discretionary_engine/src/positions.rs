@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use ahash::AHashMap;
 use color_eyre::eyre::Result;
 use serde::{Deserialize, Serialize};
 use tokio::{select, sync::mpsc, task::JoinSet};
@@ -53,14 +54,14 @@ impl PositionAcquisition {
 		Ok(Self {
 			__spec: spec,
 			notional: target_coin_quantity,
-			protocols: Vec::new(),
+			protocols: Vec::default(),
 			fill_key: Uuid::default(),
 		})
 	}
 
 	#[instrument(skip(hub_tx, exchanges))]
 	pub async fn do_acquisition(__spec: PositionSpec, protocols: Vec<Protocol>, hub_tx: mpsc::Sender<PositionToHub>, exchanges: Arc<Exchanges>) -> Result<Self> {
-		let mut js = JoinSet::new();
+		let mut js = JoinSet::default();
 		let (mut rx_orders, mut position_protocols_dynamic_info) = init_protocols(&mut js, &protocols, &__spec.asset, __spec.side);
 
 		// HACK
@@ -98,7 +99,7 @@ impl PositionAcquisition {
 			}
 		}
 
-		info!("Acquisition completed:\nFilled: {:?}\nTarget: {:?}", executed_notional, target_coin_quantity);
+		info!("Acquisition completed:\nFilled: {executed_notional:?}\nTarget: {target_coin_quantity:?}");
 		Ok(Self {
 			__spec,
 			notional: executed_notional,
@@ -108,23 +109,22 @@ impl PositionAcquisition {
 	}
 }
 
-#[derive(Clone, Debug, Default, derive_new::new)]
-pub struct PositionFollowup {
-	_acquisition: PositionAcquisition,
-	protocols_spec: Vec<Protocol>,
-	closed_notional: f64,
-}
-
 #[derive(Clone, Debug, derive_new::new)]
 pub struct HubToPosition {
 	pub sender: mpsc::Sender<ProtocolFills>,
 	pub position_id: Uuid,
 }
 
+#[derive(Clone, Debug, Default, derive_new::new)]
+pub struct PositionFollowup {
+	_acquisition: PositionAcquisition,
+	protocols_spec: Vec<Protocol>,
+	closed_notional: f64,
+}
 impl PositionFollowup {
 	#[instrument(skip(hub_tx, exchanges_arc))]
 	pub async fn do_followup(__acquisition: PositionAcquisition, protocols: Vec<Protocol>, hub_tx: mpsc::Sender<PositionToHub>, exchanges_arc: Arc<Exchanges>) -> Result<Self> {
-		let mut js = JoinSet::new();
+		let mut js = JoinSet::default();
 		let (mut rx_orders, mut position_protocols_dynamic_info) = init_protocols(&mut js, &protocols, &__acquisition.__spec.asset, !__acquisition.__spec.side);
 
 		let (tx_fills, mut rx_fills) = mpsc::channel::<ProtocolFills>(256);
@@ -158,12 +158,24 @@ impl PositionFollowup {
 			}
 		}
 
-		info!("Followup completed:\nFilled: {:?}\nTarget: {:?}", executed_notional, __acquisition.notional);
+		info!("Followup completed:\nFilled: {executed_notional:?}\nTarget: {:?}", __acquisition.notional);
 		Ok(Self {
 			_acquisition: __acquisition,
 			protocols_spec: protocols,
 			closed_notional: executed_notional,
 		})
+	}
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Hash, PartialEq, Serialize, derive_new::new)]
+pub struct PositionOrderId {
+	pub position_id: Uuid,
+	pub protocol_id: String,
+	pub ordinal: usize,
+}
+impl PositionOrderId {
+	pub fn new_from_protocol_id(position_id: Uuid, poid: ProtocolOrderId) -> Self {
+		Self::new(position_id, poid.protocol_signature, poid.ordinal)
 	}
 }
 
@@ -174,7 +186,7 @@ fn init_protocols(parent_js: &mut JoinSet<Result<()>>, protocols: &[Protocol], a
 		protocol.attach(parent_js, tx_orders.clone(), asset.to_owned(), protocols_side).unwrap();
 	}
 
-	let mut protocol_type_mapped_order: HashMap<ProtocolType, HashMap<String, Option<ProtocolDynamicInfo>>> = HashMap::new();
+	let mut protocol_type_mapped_order: AHashMap<ProtocolType, AHashMap<String, Option<ProtocolDynamicInfo>>> = AHashMap::default();
 	for protocol in protocols {
 		let subtype = protocol.get_type();
 		let map_entry = protocol_type_mapped_order.entry(subtype).or_default();
@@ -194,7 +206,7 @@ async fn send_orders_to_hub(
 	match hub_tx.send(PositionToHub::new(last_fill_key, new_target_orders, position_callback)).await {
 		Ok(_) => {}
 		Err(e) => {
-			debug!("Error sending orders: {:?}", e);
+			debug!("Error sending orders: {e:?}");
 			return Err(e.into());
 		}
 	};
@@ -204,7 +216,7 @@ async fn send_orders_to_hub(
 //? is it worth it to change the insides of a function for better logging?
 #[instrument(skip(dyn_info), fields(accessed_info_fields = Empty))]
 async fn process_fills_update(protocol_fills: ProtocolFills, dyn_info: &mut PositionProtocolsDynamicInfo, closed_notional: &mut f64) -> Result<()> {
-	let mut accessed_info_fields = Vec::new();
+	let mut accessed_info_fields = Vec::default();
 
 	for f in protocol_fills.fills {
 		let (protocol_order_id, filled_notional) = (f.id, f.qty);
@@ -218,7 +230,7 @@ async fn process_fills_update(protocol_fills: ProtocolFills, dyn_info: &mut Posi
 					.update_fill_at(protocol_order_id.ordinal, filled_notional);
 
 				accessed_info_fields.push(found_protocol_info.clone());
-				Span::current().record("accessed_info_fields", format!("{:?}", accessed_info_fields));
+				Span::current().record("accessed_info_fields", format!("{accessed_info_fields:?}"));
 			}
 		}
 	}
@@ -227,14 +239,14 @@ async fn process_fills_update(protocol_fills: ProtocolFills, dyn_info: &mut Posi
 }
 
 #[derive(Clone, Debug, Default)]
-struct PositionProtocolsDynamicInfo(pub HashMap<ProtocolType, HashMap<String, Option<ProtocolDynamicInfo>>>);
+struct PositionProtocolsDynamicInfo(pub AHashMap<ProtocolType, AHashMap<String, Option<ProtocolDynamicInfo>>>);
 impl PositionProtocolsDynamicInfo {
-	pub fn iter(&self) -> impl Iterator<Item = (&ProtocolType, &HashMap<String, Option<ProtocolDynamicInfo>>)> {
+	pub fn iter(&self) -> impl Iterator<Item = (&ProtocolType, &AHashMap<String, Option<ProtocolDynamicInfo>>)> {
 		self.0.iter()
 	}
 }
 impl std::ops::Deref for PositionProtocolsDynamicInfo {
-	type Target = HashMap<ProtocolType, HashMap<String, Option<ProtocolDynamicInfo>>>;
+	type Target = AHashMap<ProtocolType, AHashMap<String, Option<ProtocolDynamicInfo>>>;
 
 	fn deref(&self) -> &Self::Target {
 		&self.0
@@ -258,9 +270,9 @@ fn recalculate_protocol_orders(
 	dyn_info: &PositionProtocolsDynamicInfo,
 	exchanges_arc: Arc<Exchanges>,
 ) -> Vec<ConceptualOrder<ProtocolOrderId>> {
-	let mut market_orders = Vec::new();
-	let mut stop_orders = Vec::new();
-	let mut limit_orders = Vec::new();
+	let mut market_orders = Vec::default();
+	let mut stop_orders = Vec::default();
+	let mut limit_orders = Vec::default();
 
 	//PERF: (n^(n/2)), but it's fine, as n is small.
 	for (_protocol_type, protocols_map) in dyn_info.iter() {
@@ -298,7 +310,7 @@ fn recalculate_protocol_orders(
 				Some(offset) => {
 					match i {
 						x if x == in_play_protocols_map.len() - 1 => {
-							debug!("Discarding leftovers for {:?}", _protocol_type);
+							debug!("Discarding leftovers for {_protocol_type:?}");
 						}
 						_ => {
 							// Note: we break immediately so no need to update accumulated_leftovers
@@ -318,6 +330,7 @@ fn recalculate_protocol_orders(
 		}
 	}
 
+	// [impl protocol.orders.market-first]
 	/// NB: Market-like orders MUST be ran first
 	fn update_order_selection(extendable: &mut Vec<ConceptualOrder<ProtocolOrderId>>, incoming: &[ConceptualOrder<ProtocolOrderId>], left_to_target: &mut f64) {
 		for order in incoming {
@@ -331,7 +344,7 @@ fn recalculate_protocol_orders(
 		}
 	}
 
-	let mut new_target_orders: Vec<ConceptualOrder<ProtocolOrderId>> = Vec::new();
+	let mut new_target_orders: Vec<ConceptualOrder<ProtocolOrderId>> = Vec::default();
 
 	let mut left_to_target_marketlike_notional = left_to_target_notional;
 	update_order_selection(&mut new_target_orders, &market_orders, &mut left_to_target_marketlike_notional);
@@ -370,18 +383,6 @@ async fn process_protocol_orders_update(protocol_orders_update: ProtocolOrders, 
 		}
 	}
 	Ok(())
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Hash, PartialEq, Serialize, derive_new::new)]
-pub struct PositionOrderId {
-	pub position_id: Uuid,
-	pub protocol_id: String,
-	pub ordinal: usize,
-}
-impl PositionOrderId {
-	pub fn new_from_protocol_id(position_id: Uuid, poid: ProtocolOrderId) -> Self {
-		Self::new(position_id, poid.protocol_signature, poid.ordinal)
-	}
 }
 
 // pub struct PositionClosed {

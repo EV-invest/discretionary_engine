@@ -1,0 +1,40 @@
+[package]
+name = "de_strategy"
+version = "1.0.0"
+edition = "2024"
+
+license = "MIT"
+documentation = "https://docs.rs/discretionary_engine_strategy"
+repository = "https://github.com/valeratrades/discretionary_engine/tree/master/discretionary_engine_strategy"
+homepage = "https://github.com/valeratrades/discretionary_engine"
+authors = ["valeratrades"]
+description = "Strategy execution engine for discretionary_engine"
+
+[package.metadata.docs.rs]
+cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
+
+[dependencies]
+ahash = { workspace = true, features = ["serde"] }
+clap.workspace = true
+color-eyre.workspace = true
+de_core.workspace = true
+de_macros.workspace = true
+derive-new.workspace = true
+eyre.workspace = true
+futures-util.workspace = true
+nautilus-bybit.workspace = true
+nautilus-model.workspace = true
+redis = { workspace = true, features = ["tokio-comp", "streams"] }
+serde.workspace = true
+smart-default.workspace = true
+tokio = { workspace = true, features = ["full", "signal"] }
+tracing.workspace = true
+tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+v_exchanges.workspace = true
+v_utils.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+
+[lints]
+workspace = true

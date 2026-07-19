@@ -604,7 +604,7 @@ version = "3.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "519bd3116aeeb42d5372c29d982d16d0170d3d4a5ed85fc7dd91642ffff3c67c"
 dependencies = [
- "darling 0.23.0",
+ "darling 0.20.11",
  "ident_case",
  "prettyplease",
  "proc-macro2",
@@ -5668,7 +5668,7 @@ dependencies = [
 
 [[package]]
 name = "v_utils"
-version = "2.15.55"
+version = "2.15.57"
 dependencies = [
  "ahash 0.8.12",
  "bon",
@@ -5710,7 +5710,7 @@ dependencies = [
 
 [[package]]
 name = "v_utils_macros"
-version = "2.11.55"
+version = "2.11.57"
 dependencies = [
  "eyre",
  "heck",
@@ -6580,12 +6580,12 @@ checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
 
 [[patch.unused]]
 name = "v_exchanges"
-version = "0.18.6"
+version = "0.19.1"
 
 [[patch.unused]]
 name = "v_exchanges_adapters"
-version = "0.18.6"
+version = "0.19.1"
 
 [[patch.unused]]
 name = "v_exchanges_api_generics"
-version = "0.20.6"
+version = "0.21.1"

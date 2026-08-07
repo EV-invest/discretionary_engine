@@ -11,7 +11,7 @@ use v_utils::{
 
 use crate::data::BookRef;
 
-#[derive(clap::Args, Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, clap::Args, serde::Deserialize, serde::Serialize)]
 pub struct ConceptualLimitChangeable {
 	/// follows rules for normal limit orders
 	#[arg(long)]
@@ -39,7 +39,7 @@ pub struct ConceptualLimitChangeable {
 //	Crossed,
 //}
 
-#[derive(clap::Args, Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, clap::Args, serde::Deserialize, serde::Serialize)]
 pub struct ConceptualLimitArgs {
 	/// gimme [Symbol](v_exchanges::Symbol)
 	#[arg(short, long)]

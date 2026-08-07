@@ -19,7 +19,7 @@
         rs = v_flakes.rs {
           inherit pkgs rust;
           cranelift = false; # cranelift disabled due to aws-lc-rs incompatibility
-          tracey = false; # feels raw. And kinda pointless, as I don't see shit enforced. Might not understand it well enough, but starting to think it superflous
+          tracey = true; # feels a bit raw though, - enforcement is a bit weak
           build = {
             enable = true;
             workspace = {
@@ -41,7 +41,6 @@
           excludeDirs = [ "libs/nautilus_trader" ];
           lastSupportedVersion = "nightly-2025-10-12";
           jobs.default = true;
-          excalidraw."docs/arch.excalidraw".standalone = true;
           labels.extra = [
             # I think I should be grouping labels through color, right
             { name = "rm"; color = "0000ff"; description = "risk management side"; }
@@ -49,6 +48,7 @@
           ];
         };
         readme = v_flakes.readme-fw { inherit pkgs pname; defaults = true; lastSupportedVersion = "nightly-1.92"; rootDir = ./.; badges = [ "msrv" "crates_io" "docs_rs" "loc" "ci" ]; };
+        combined = v_flakes.utils.combine { inherit rust; modules = [ rs github readme ]; };
 
       in
       {
@@ -79,9 +79,7 @@
           inherit stdenv;
           shellHook =
             pre-commit-check.shellHook +
-            github.shellHook +
-            rs.shellHook +
-            readme.shellHook +
+            combined.shellHook +
             ''
               cp -f ${(v_flakes.files.treefmt) {inherit pkgs; extend = { global.excludes.augment = [ "libs/**" ]; };}} ./.treefmt.toml
             '';
@@ -96,7 +94,7 @@
             openssl
             pkg-config
             rust
-          ] ++ pre-commit-check.enabledPackages ++ github.enabledPackages ++ rs.enabledPackages;
+          ] ++ pre-commit-check.enabledPackages ++ combined.enabledPackages;
         };
       }
     );

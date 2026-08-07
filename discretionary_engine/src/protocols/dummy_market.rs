@@ -9,7 +9,7 @@ use crate::{
 };
 
 /// Literally just sends one market order.
-#[derive(Clone, v_macros::CompactFormatNamed, Debug, Default, ProtocolWrapper, derive_new::new)]
+#[derive(Clone, Debug, Default, ProtocolWrapper, v_macros::CompactFormatNamed, derive_new::new)]
 pub struct DummyMarket {
 	// dummy: String, //? Does CompactFormat correctly work with empty structs?
 }

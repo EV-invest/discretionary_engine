@@ -4,10 +4,20 @@
 [<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-66c2a5?style=for-the-badge&labelColor=555555&logo=docs.rs&style=flat-square" height="20">](https://docs.rs/discretionary_engine)
 ![Lines Of Code](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/valeratrades/b48e6f02c61942200e7d1e3eeabf9bcb/raw/discretionary_engine-loc.json)
 <br>
-[<img alt="ci errors" src="https://img.shields.io/github/actions/workflow/status/valeratrades/discretionary_engine/errors.yml?branch=master&style=for-the-badge&style=flat-square&label=errors&labelColor=420d09" height="20">](https://github.com/valeratrades/discretionary_engine/actions?query=branch%3Amaster) <!--NB: Won't find it if repo is private-->
-[<img alt="ci warnings" src="https://img.shields.io/github/actions/workflow/status/valeratrades/discretionary_engine/warnings.yml?branch=master&style=for-the-badge&style=flat-square&label=warnings&labelColor=d16002" height="20">](https://github.com/valeratrades/discretionary_engine/actions?query=branch%3Amaster) <!--NB: Won't find it if repo is private-->
+[<img alt="ci errors" src="https://img.shields.io/github/actions/workflow/status/EV-invest/discretionary_engine/errors.yml?branch=main&style=for-the-badge&style=flat-square&label=errors&labelColor=420d09" height="20">](https://github.com/EV-invest/discretionary_engine/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
+[<img alt="ci warnings" src="https://img.shields.io/github/actions/workflow/status/EV-invest/discretionary_engine/warnings.yml?branch=main&style=for-the-badge&style=flat-square&label=warnings&labelColor=d16002" height="20">](https://github.com/EV-invest/discretionary_engine/actions?query=branch%3Amain) <!--NB: Won't find it if repo is private-->
 
 Places and follows a position from a definition of _what the target position is_
+<!-- markdownlint-disable -->
+<details>
+<summary>
+<h2>Installation</h2>
+</summary>
+
+TODO
+
+</details>
+<!-- markdownlint-restore -->
 
 ## Usage
 Example query:
@@ -35,10 +45,10 @@ An example config can be found in ./docs/.readme_assets/examples/config.toml
 
 - orders are placed immediately (not that far off, as most of the time we will spam the thing until it accepts. And only other action, that will need to be taken, is to prevent any increases in exposure while we have any mismatches).
 
-## Roadmap
-- [ ] micro/macro data distinctions
-- [ ] scale to multiple positions
-    if we're correctly using websockets for trading, actually don't think we need to have a mother program for all to share exchange connections: micro data will be stored on a separate server; macro is generally cheap to pull (or needs to be pre-compiled anyways)
+<!--## Roadmap-->
+<!--- [ ] micro/macro data distinctions-->
+<!--- [ ] scale to multiple positions-->
+<!--    if we're correctly using websockets for trading, actually don't think we need to have a mother program for all to share exchange connections: micro data will be stored on a separate server; macro is generally cheap to pull (or needs to be pre-compiled anyways)-->
 
 
 <br>

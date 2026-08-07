@@ -26,7 +26,7 @@ enum Commands {
 	Adjust(AdjustArgs),
 }
 
-#[derive(clap::Args, Clone, Debug)]
+#[derive(Clone, Debug, clap::Args)]
 struct SubmitArgs {
 	/// Target size of the position on the asset to establish. Signed.
 	#[arg(short, long, allow_hyphen_values = true)]

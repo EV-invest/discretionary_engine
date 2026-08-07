@@ -1,6 +1,7 @@
 env:
   CARGO_INCREMENTAL: '0'
   CARGO_NET_RETRY: '10'
+  RUSTC_WRAPPER: ''
   RUSTUP_MAX_RETRIES: '10'
   RUST_BACKTRACE: short
 jobs:
@@ -29,7 +30,7 @@ jobs:
       run: cargo +nightly -Zscript -q my_gh_stuff/github/workflows/code-duplication.rs
     timeout-minutes: 15
   pre_ci:
-    uses: valeratrades/.github/.github/workflows/pre_ci.yml@master
+    uses: valeratrades/.github/.github/workflows/pre_ci.yml@main
   rust-clippy:
     if: github.event_name != 'pull_request'
     name: Clippy
@@ -60,7 +61,8 @@ jobs:
       with:
         name: modified-cargo-files
     - uses: dtolnay/install@cargo-docs-rs
-    - run: cargo docs-rs
+    - run: "for p in $(cargo metadata --no-deps --format-version 1 | jq -r '.packages[].name');\
+        \ do\n  cargo docs-rs -p \"$p\"\ndone\n"
     timeout-minutes: 45
   rust-machete:
     name: Unused Dependencies
@@ -92,15 +94,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Installation
-      uses: taiki-e/install-action@v2
-      with:
-        tool: cargo-sort-derives
+    - uses: cachix/install-nix-action@v31
     - name: Assert derives are sorted
-      run: "\t\t\t\tcargo sort-derives --check\n\t\t\t\texit_code=$?\n\t\t\t\tif [\
-        \ $exit_code != 0 ]; then\n\t\t\t\t\techo \"Derives are not sorted. Run \\\
-        `cargo sort-derives\\` to fix it.\"\n\t\t\t\t\texit $exit_code\n\t\t\t\tfi\n\
-        \t\t\t"
+      run: "\t\t\t\tnix run github:valeratrades/v_flakes#cargo-sort-derives -- --check\n\
+        \t\t\t\texit_code=$?\n\t\t\t\tif [ $exit_code != 0 ]; then\n\t\t\t\t\techo\
+        \ \"Derives are not sorted. Run \\`cargo sort-derives\\` to fix it.\"\n\t\t\
+        \t\t\texit $exit_code\n\t\t\t\tfi\n\t\t\t"
   tokei:
     name: Reasonable Amount of Comments
     runs-on: ubuntu-latest

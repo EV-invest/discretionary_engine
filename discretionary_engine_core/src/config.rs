@@ -1,8 +1,8 @@
 use std::sync::OnceLock;
 
 use ahash::AHashMap;
+use exchange_interactions::{Exchange, ExchangeInit as _, ExchangeName, Instrument};
 use secrecy::{ExposeSecret as _, SecretString};
-use v_exchanges::{Exchange, ExchangeName, Instrument};
 use v_utils::macros as v_macros;
 
 pub type ConfiguredExchanges = AHashMap<String, ExchangeConfig>;

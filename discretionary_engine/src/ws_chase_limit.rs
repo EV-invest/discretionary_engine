@@ -20,7 +20,7 @@ use nautilus_model::identifiers::{ClientOrderId, InstrumentId, StrategyId, Trade
 use tokio::time::{Duration, sleep};
 use tracing::info;
 use ustr::Ustr;
-use v_utils::{log, trades::Timeframe};
+use v_utils::{Timeframe, log};
 
 /// Executes an order using WebSocket-based chase-limit strategy
 ///

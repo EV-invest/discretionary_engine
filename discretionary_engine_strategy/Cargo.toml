@@ -20,6 +20,7 @@ color-eyre.workspace = true
 de_core.workspace = true
 de_macros.workspace = true
 derive-new.workspace = true
+exchange_interactions.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
 nautilus-bybit.workspace = true
@@ -30,7 +31,7 @@ smart-default.workspace = true
 tokio = { workspace = true, features = ["full", "signal"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
-v_exchanges.workspace = true
+trading_data_core.workspace = true
 v_utils.workspace = true
 
 [dev-dependencies]

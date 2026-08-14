@@ -11,9 +11,10 @@ use dummy_market::DummyMarketWrapper;
 use sar::{Sar, SarWrapper};
 use tokio::{sync::mpsc, task::JoinSet};
 use tracing::instrument;
+use trading_data_core::Side;
 use trailing_stop::{TrailingStop, TrailingStopWrapper};
 use uuid::Uuid;
-use v_utils::{Percent, trades::Side};
+use v_utils::Percent;
 
 use crate::exchange_apis::order_types::{ConceptualOrder, ConceptualOrderPercents, ProtocolOrderId};
 
@@ -284,7 +285,8 @@ impl From<ApproachingLimit> for ProtocolParams {
 mod tests {
 	use insta::assert_debug_snapshot;
 	use lazy_static::lazy_static;
-	use v_utils::{Percent, trades::Side};
+	use trading_data_core::Side;
+	use v_utils::Percent;
 
 	use super::*;
 	use crate::exchange_apis::{

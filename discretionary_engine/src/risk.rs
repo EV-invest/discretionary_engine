@@ -7,9 +7,9 @@ use de_risk::{
 	balance::{RiskError, collect_balances, get_total_balance, initialize_exchanges},
 	ema_prev_times_for_same_move,
 };
+use exchange_interactions::core::Ticker;
 use jiff::Unit;
 use tracing::debug;
-use v_exchanges::core::Ticker;
 use v_utils::{Percent, log};
 
 use crate::config::LiveSettings;

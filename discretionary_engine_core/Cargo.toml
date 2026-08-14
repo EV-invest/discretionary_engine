@@ -8,12 +8,12 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 ahash = { workspace = true, features = ["serde"] }
 color-eyre.workspace = true
+exchange_interactions.workspace = true
 redis = { workspace = true, features = ["tokio-comp", "streams"] }
 secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["time"] }
-v_exchanges.workspace = true
 v_utils.workspace = true
 
 [lints]

@@ -4,12 +4,10 @@ use std::{fmt, str::FromStr};
 
 use color_eyre::eyre::Result;
 use de_macros::ProtocolWrapper;
+use exchange_interactions::core::{Instrument, Symbol};
 use tokio::{sync::mpsc, task::JoinSet};
-use v_exchanges::core::{Instrument, Symbol};
-use v_utils::{
-	Percent,
-	trades::{Pair, Side},
-};
+use trading_data_core::{Pair, Side};
+use v_utils::Percent;
 
 use super::{ProtocolOrders, ProtocolTrait, ProtocolType};
 use crate::order_types::{ConceptualMarket, ConceptualOrderPercents, ConceptualOrderType};

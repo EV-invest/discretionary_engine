@@ -1,13 +1,11 @@
 use std::hash::{Hash, Hasher};
 
 use ahash::AHashMap;
+use exchange_interactions::{ExchangeName, ExchangeOrder, Symbol, orders::LimitOrder};
 use miette::Result;
+use trading_data_core::Side;
 use uuid::Uuid;
-use v_exchanges::{ExchangeName, ExchangeOrder, Symbol, orders::LimitOrder};
-use v_utils::{
-	arch::{Keyed, MyKey},
-	trades::Side,
-};
+use v_utils::arch::{Keyed, MyKey};
 
 use crate::data::BookRef;
 
@@ -41,7 +39,7 @@ pub struct ConceptualLimitChangeable {
 
 #[derive(Clone, Debug, clap::Args, serde::Deserialize, serde::Serialize)]
 pub struct ConceptualLimitArgs {
-	/// gimme [Symbol](v_exchanges::Symbol)
+	/// gimme [Symbol](exchange_interactions::Symbol)
 	#[arg(short, long)]
 	pub symbol: Symbol,
 
@@ -106,7 +104,7 @@ impl ConceptualLimit {
 		let limit = LimitOrder::new(self.side, price, self.size_q);
 		let single_sad_chase_limit = ExchangeOrder::new(
 			limit,
-			v_exchanges::Ticker {
+			exchange_interactions::Ticker {
 				symbol: self.symbol,
 				exchange_name: ExchangeName::Bybit, //dbg
 			},
@@ -160,7 +158,7 @@ impl Keyed for ConceptualLimit {
 	}
 }
 
-//TODO: move to v_exchanges
+//TODO: move to exchange_interactions
 // want to have an object fully encompasing all the relevant physical updates
 #[derive(Debug, derive_more::Display, thiserror::Error, derive_more::From)]
 /// Error during the conversion of intent into exact orders

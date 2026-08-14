@@ -4,9 +4,10 @@ use std::hash::Hash;
 
 use color_eyre::eyre::{Result, bail};
 use derive_new::new;
+use exchange_interactions::core::Symbol;
 use serde::{Deserialize, Serialize};
-use v_exchanges::core::Symbol;
-use v_utils::{Percent, trades::Side};
+use trading_data_core::Side;
+use v_utils::Percent;
 
 //HACK: wtf, should most definitely be Copy lol
 pub trait IdRequirements: Hash + Clone + PartialEq + Default + std::fmt::Debug {}

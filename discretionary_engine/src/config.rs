@@ -8,7 +8,7 @@ use color_eyre::eyre::{Result, eyre};
 pub use de_core::config::{ConfiguredExchanges, ExchangeConfig};
 pub use de_risk::config::*;
 pub use de_strategy::config::*;
-use v_exchanges::ExchangeName;
+use exchange_interactions::ExchangeName;
 use v_utils::macros as v_macros;
 
 #[derive(Clone, Debug, v_macros::LiveSettings, v_macros::MyConfigPrimitives, v_macros::Settings, smart_default::SmartDefault)]

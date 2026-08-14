@@ -8,7 +8,7 @@ use nautilus_bybit::{
 };
 use tokio::time::{Duration, sleep};
 use tracing::info;
-use v_utils::{log, trades::Timeframe};
+use v_utils::{Timeframe, log};
 
 /// Executes an order using a chase-limit strategy
 ///

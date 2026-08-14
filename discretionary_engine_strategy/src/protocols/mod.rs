@@ -2,14 +2,15 @@
 
 mod dummy_market;
 
-use ahash::AHashSet;
 use std::{collections::HashSet, str::FromStr};
 
+use ahash::AHashSet;
 use color_eyre::eyre::{Result, bail};
 use dummy_market::DummyMarketWrapper;
 use tokio::{sync::mpsc, task::JoinSet};
 use tracing::instrument;
-use v_utils::{Percent, trades::Side};
+use trading_data_core::Side;
+use v_utils::Percent;
 
 use crate::order_types::{ConceptualOrder, ConceptualOrderPercents, ProtocolOrderId};
 
@@ -101,7 +102,7 @@ impl ProtocolOrders {
 			"Semantically makes no sense. Protocol must always send Vec<Some<Order>> for all possible orders it will ever send, them being None if at current iteration they are ignored"
 		);
 
-		let mut symbols_set: AHashSet<v_exchanges::Symbol> = AHashSet::default();
+		let mut symbols_set: AHashSet<exchange_interactions::Symbol> = AHashSet::default();
 		for order in &orders.iter().flatten().collect::<Vec<&ConceptualOrderPercents>>() {
 			symbols_set.insert(order.symbol);
 		}
@@ -174,12 +175,10 @@ pub struct RecalculateOrdersPerOrderInfo {
 
 #[cfg(test)]
 mod tests {
+	use exchange_interactions::core::{Instrument, Symbol};
 	use insta::assert_debug_snapshot;
-	use v_exchanges::core::{Instrument, Symbol};
-	use v_utils::{
-		Percent,
-		trades::{Pair, Side},
-	};
+	use trading_data_core::{Pair, Side};
+	use v_utils::Percent;
 
 	use super::*;
 	use crate::order_types::{ConceptualMarket, ConceptualOrderType};

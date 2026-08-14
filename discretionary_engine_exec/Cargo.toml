@@ -17,9 +17,9 @@ cargo-args = ["-Zunstable-options", "-Zrustdoc-scrape-examples"]
 ahash = { workspace = true, features = ["serde"] }
 derive-new.workspace = true
 derive_more.workspace = true
+exchange_interactions.workspace = true
 strum.workspace = true
 uuid.workspace = true
-v_exchanges.workspace = true
 v_utils.workspace = true
 
 [lints]

@@ -28,11 +28,8 @@ use exchange_apis::{exchanges::Exchanges, hub, hub::PositionToHub};
 use positions::*;
 use tokio::{sync::mpsc, task::JoinSet};
 use tracing::{info, instrument};
-use v_utils::{
-	log,
-	trades::{Side, Timeframe},
-	utils::exit_on_error,
-};
+use trading_data_core::Side;
+use v_utils::{Timeframe, log, utils::exit_on_error};
 
 pub static MUT_CURRENT_CONNECTION_FAILURES: AtomicU32 = AtomicU32::new(0);
 

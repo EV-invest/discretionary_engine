@@ -1,28 +1,47 @@
-use std::{cell::UnsafeCell, pin::Pin, sync::Arc};
+use std::{
+	cell::UnsafeCell,
+	pin::Pin,
+	sync::Arc,
+	time::{SystemTime, UNIX_EPOCH},
+};
 
 use ahash::AHashMap;
 use arc_swap::ArcSwap;
+use exchange_interactions::{ExchangeName, ExchangeStream, Instrument, adapters::generics::ws::WsError};
 use futures_util::{StreamExt as _, stream::FuturesUnordered};
 use tokio::sync::Notify;
-use v_exchanges::{BookShape, BookUpdate, ExchangeName, ExchangeStream};
-use v_utils::trades::Asset;
+use trading_data_core::{Asset, BookUpdate, Exact, Local, PrecisionPriceQty, Price, ShadowBook, Ts};
 
-/// Shared read handle to a continuously-updated orderbook. Cheaply cloneable.
+/// Never read — we take no checkpoints here, persistence is not this crate's job — but
+/// [`ShadowBook`] needs one to be constructed.
+const CHECKPOINT_CADENCE: Exact = Exact::from_nanos(60_000_000_000);
+/// Shared read handle to a continuously-updated top of book. Cheaply cloneable.
 pub type BookRef = Arc<BookShared>;
 
-type PullResult = (
-	ExchangeName,
-	Box<dyn ExchangeStream<Item = BookUpdate>>,
-	Result<BookUpdate, v_exchanges::adapters::generics::ws::WsError>,
-);
+/// A feed is one (venue, instrument): spot and perp are separate books, and folding one's deltas
+/// into the other's ladder would corrupt both.
+type FeedId = (ExchangeName, Instrument);
+type PullResult = (FeedId, Box<dyn ExchangeStream<Item = BookUpdate>>, Result<Vec<BookUpdate>, WsError>);
+/// Best bid/ask across every subscribed feed.
+///
+/// Deliberately not a merged ladder: [`trading_data_core::BookShape`] carries one
+/// [`PrecisionPriceQty`], and each venue reports on its own tick, so raw levels from two feeds are
+/// not the same unit and cannot share a map. [`Price`] carries its precision with it and orders by
+/// value, which is what makes the comparison below meaningful across venues.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Top {
+	pub bid: Option<Price>,
+	pub ask: Option<Price>,
+}
+
 pub struct BookShared {
-	snapshot: ArcSwap<BookShape>,
+	top: ArcSwap<Top>,
 	notify: Notify,
 }
 impl BookShared {
-	/// Current merged orderbook snapshot.
-	pub fn snapshot(&self) -> Arc<BookShape> {
-		self.snapshot.load_full()
+	/// Current cross-venue top of book.
+	pub fn top(&self) -> Arc<Top> {
+		self.top.load_full()
 	}
 
 	/// Wait until the book has been updated.
@@ -34,7 +53,7 @@ impl BookShared {
 impl Default for BookShared {
 	fn default() -> Self {
 		Self {
-			snapshot: ArcSwap::from_pointee(BookShape::default()),
+			top: ArcSwap::from_pointee(Top::default()),
 			notify: Notify::new(),
 		}
 	}
@@ -53,26 +72,30 @@ pub(crate) struct Book {
 	inner: UnsafeCell<BookInner>,
 }
 impl Book {
-	pub fn new(asset: Asset) -> Self {
+	pub async fn new(asset: Asset) -> Self {
 		let mut inner = BookInner {
-			exchange_shapes: AHashMap::default(),
+			feeds: AHashMap::default(),
 			futs: FuturesUnordered::default(),
 		};
 
-		let exchanges = de_core::config::build_exchanges();
-		for (exch, instruments) in &exchanges {
+		let mut exchanges = de_core::config::build_exchanges();
+		for (exch, instruments) in &mut exchanges {
 			let name = exch.name();
-			for instrument in instruments {
-				let pair = asset.usd_pair(*instrument == v_exchanges::Instrument::PerpInverse);
-				match exch.ws_book(vec![pair], *instrument) {
-					Ok(stream) => {
+			let Some(feed) = exch.stream() else {
+				tracing::warn!(exchange = %name, asset = %asset, "no live feed");
+				continue;
+			};
+			for instrument in instruments.iter().copied() {
+				let pair = asset.usd_pair(instrument == Instrument::PerpInverse);
+				match feed.ws_book(&[pair], instrument).await {
+					Ok(mut stream) => {
 						tracing::info!(exchange = %name, asset = %asset, %instrument, "subscribed to ws_book");
-						inner.exchange_shapes.insert(name.clone(), BookShape::default());
-						let name = name.clone();
-						let mut stream = stream;
+						let id = (name, instrument);
+						// precision is seeded from the feed's first message
+						inner.feeds.insert(id, ShadowBook::new(PrecisionPriceQty::default(), CHECKPOINT_CADENCE));
 						inner.futs.push(Box::pin(async move {
 							let result = stream.next().await;
-							(name, stream, result)
+							(id, stream, result)
 						}));
 					}
 					Err(e) => {
@@ -88,62 +111,58 @@ impl Book {
 		}
 	}
 
-	/// Pull one update from any exchange stream, apply and publish.
+	/// Pull one batch from any feed, fold and publish.
 	/// SAFETY: caller must ensure this is only called from a single task.
 	pub async fn pull(&self) {
 		// SAFETY: only the DataHub poll loop calls this, single-threaded access guaranteed.
 		let inner = unsafe { &mut *self.inner.get() };
 
-		let Some((name, stream, result)) = inner.futs.next().await else {
+		let Some((id, stream, result)) = inner.futs.next().await else {
 			std::future::pending::<()>().await;
 			unreachable!();
 		};
 
 		match result {
-			Ok(update) => {
-				if let Some(shape) = inner.exchange_shapes.get_mut(&name) {
-					match update {
-						BookUpdate::Snapshot(s) => *shape = s,
-						BookUpdate::Delta(delta) => {
-							shape.time = delta.time;
-							apply_side(&mut shape.bids, &delta.bids);
-							apply_side(&mut shape.asks, &delta.asks);
-						}
-					}
+			Ok(updates) => {
+				let recv = now();
+				let shadow = inner.feeds.get_mut(&id).expect("inserted on subscribe, dropped only along with its stream");
+				for u in &updates {
+					// the emitted rows are for persistence; here we only read the fold they were applied to
+					let _ = shadow.ingest(u, recv);
 				}
-				self.publish_merged(inner);
+				self.publish(inner);
 
 				let mut stream = stream;
 				inner.futs.push(Box::pin(async move {
 					let result = stream.next().await;
-					(name, stream, result)
+					(id, stream, result)
 				}));
 			}
 			Err(e) => {
-				tracing::error!(exchange = %name, "ws_book error: {e}");
-				inner.exchange_shapes.remove(&name);
+				tracing::error!(exchange = %id.0, instrument = %id.1, "ws_book error: {e}");
+				inner.feeds.remove(&id);
 			}
 		}
 	}
 
-	fn publish_merged(&self, inner: &BookInner) {
-		let mut merged = BookShape::default();
-		for shape in inner.exchange_shapes.values() {
-			merged.asks.extend_from_slice(&shape.asks);
-			merged.bids.extend_from_slice(&shape.bids);
-			if shape.time > merged.time {
-				merged.time = shape.time;
+	fn publish(&self, inner: &BookInner) {
+		let mut top = Top::default();
+		for shadow in inner.feeds.values() {
+			let book = shadow.book();
+			if let Some((bid, _)) = book.best_bid() {
+				top.bid = Some(top.bid.map_or(bid, |best| best.max(bid)));
+			}
+			if let Some((ask, _)) = book.best_ask() {
+				top.ask = Some(top.ask.map_or(ask, |best| best.min(ask)));
 			}
 		}
-		merged.asks.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
-		merged.bids.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-		self.shared.snapshot.store(Arc::new(merged));
+		self.shared.top.store(Arc::new(top));
 		self.shared.notify.notify_waiters();
 	}
 }
 
 struct BookInner {
-	exchange_shapes: AHashMap<ExchangeName, BookShape>,
+	feeds: AHashMap<FeedId, ShadowBook>,
 	futs: FuturesUnordered<Pin<Box<dyn std::future::Future<Output = PullResult> + Send>>>,
 	//TODO!!!: history
 }
@@ -151,14 +170,7 @@ struct BookInner {
 /// SAFETY: only the single DataHub poll task ever accesses the UnsafeCell contents.
 unsafe impl Sync for Book {}
 
-fn apply_side(levels: &mut Vec<(f64, f64)>, deltas: &[(f64, f64)]) {
-	for &(price, qty) in deltas {
-		if qty == 0.0 {
-			levels.retain(|&(p, _)| (p - price).abs() > f64::EPSILON);
-		} else if let Some(existing) = levels.iter_mut().find(|(p, _)| (*p - price).abs() <= f64::EPSILON) {
-			existing.1 = qty;
-		} else {
-			levels.push((price, qty));
-		}
-	}
+fn now() -> Ts<Local> {
+	let since_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("system clock is after the unix epoch");
+	Ts::from_nanos(since_epoch.as_nanos() as i64)
 }

@@ -2,6 +2,7 @@ use std::ops::{Add, Sub};
 
 use clap::ValueEnum;
 use color_eyre::eyre::{Result, bail};
+use exchange_interactions::core::{Exchange, Symbol};
 #[cfg(test)]
 use insta as _;
 use jiff::{Span, Timestamp, Unit};
@@ -10,8 +11,8 @@ use strum::{EnumCount, EnumIter, IntoEnumIterator};
 use tokio as _;
 use tracing::debug;
 use tracing_subscriber as _;
-use v_exchanges::core::{Exchange, Symbol};
-use v_utils::{Percent, percent::PercentU, trades::*};
+use trading_data_core::*;
+use v_utils::{Percent, Timeframe, percent::PercentU};
 
 pub mod balance;
 pub mod config;

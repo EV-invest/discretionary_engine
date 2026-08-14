@@ -8,11 +8,8 @@ use serde_json::Value;
 use tokio::{sync::mpsc, task::JoinSet};
 use tokio_tungstenite::connect_async;
 use tracing::{debug, instrument};
-use v_utils::{
-	Percent,
-	macros::CompactFormat,
-	trades::{Ohlc, Side, Timeframe},
-};
+use trading_data_core::{Ohlc, Side};
+use v_utils::{Percent, Timeframe, macros::CompactFormat};
 
 use crate::{
 	exchange_apis::{Market, Symbol, order_types::*},
@@ -173,7 +170,7 @@ impl SarIndicator {
 
 #[cfg(test)]
 mod tests {
-	use v_utils::trades::mock_p_to_ohlc;
+	use trading_data_core::mock_p_to_ohlc;
 
 	use super::*;
 

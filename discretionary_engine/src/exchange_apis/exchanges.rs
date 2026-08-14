@@ -26,8 +26,8 @@ impl Exchanges {
 
 	#[instrument(skip(_s, live_settings))]
 	pub async fn compile_total_balance(_s: Arc<Self>, live_settings: Arc<LiveSettings>) -> Result<f64> {
+		use exchange_interactions::ExchangeName;
 		use secrecy::ExposeSecret;
-		use v_exchanges::ExchangeName;
 
 		let config = live_settings.config()?;
 		let binance_config = config.get_exchange(ExchangeName::Binance)?;

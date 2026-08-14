@@ -3,14 +3,15 @@ use std::str::FromStr;
 use ahash::AHashMap;
 use color_eyre::eyre::{Result, eyre};
 use de_core::config::ExchangeConfig;
-use tracing::{error, instrument};
-use v_exchanges::{
-	RetryConfig,
+use exchange_interactions::{
+	ExchangeInit as _, RetryConfig,
 	adapters::generics::http::{ApiError, AuthError, HandleError, RequestError},
 	core::{Exchange, ExchangeName, Instrument},
 	error::ExchangeError,
 };
-use v_utils::{trades::Usd, utils::Sysexit};
+use tracing::{error, instrument};
+use trading_data_core::Usd;
+use v_utils::utils::Sysexit;
 
 #[instrument]
 pub async fn main(exchanges: &AHashMap<String, ExchangeConfig>, other_balances: Option<&AHashMap<String, f64>>) -> Result<(), RiskError> {
@@ -67,7 +68,7 @@ pub fn initialize_exchanges(exchanges: &AHashMap<String, ExchangeConfig>) -> Res
 
 		if exchange_name == ExchangeName::Kucoin {
 			let passphrase = auth.passphrase.clone().ok_or_else(|| eyre!("Kucoin exchange requires passphrase in config"))?;
-			exchange.update_default_option(v_exchanges::kucoin::KucoinOption::Passphrase(passphrase));
+			exchange.update_default_option(exchange_interactions::kucoin::KucoinOption::Passphrase(passphrase));
 		}
 
 		out.push(exchange);

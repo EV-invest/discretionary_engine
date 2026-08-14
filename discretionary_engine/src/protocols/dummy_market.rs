@@ -1,7 +1,8 @@
 use color_eyre::eyre::Result;
 use de_macros::ProtocolWrapper;
 use tokio::{sync::mpsc, task::JoinSet};
-use v_utils::{Percent, macros as v_macros, trades::Side};
+use trading_data_core::Side;
+use v_utils::{Percent, macros as v_macros};
 
 use crate::{
 	exchange_apis::{Market, Symbol, order_types::*},

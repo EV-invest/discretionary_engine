@@ -1,7 +1,7 @@
 use derive_more::Deref;
+use exchange_interactions::ExchangeOrder;
 use strum::{AsRefStr, Display, EnumIter, EnumString, FromRepr};
 use uuid::Uuid;
-use v_exchanges::ExchangeOrder;
 use v_utils::arch::{Keyed, MyKey};
 
 /// Lifecycle state of an order on the venue.

@@ -20,6 +20,7 @@ ahash = { workspace = true, features = ["serde"] }
 clap.workspace = true
 color-eyre.workspace = true
 de_core.workspace = true
+exchange_interactions = { workspace = true, features = ["binance", "bybit", "kucoin", "mexc"] }
 jiff.workspace = true
 miette.workspace = true
 smart-default.workspace = true
@@ -28,8 +29,8 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["full", "signal"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
-v_exchanges = { workspace = true, features = ["binance", "bybit", "kucoin", "mexc"] }
-v_utils = { workspace = true, features = ["trades"] }
+trading_data_core.workspace = true
+v_utils.workspace = true
 
 [dev-dependencies]
 insta.workspace = true

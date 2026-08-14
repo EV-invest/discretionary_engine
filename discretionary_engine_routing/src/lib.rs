@@ -7,12 +7,13 @@ use std::{pin::Pin, sync::Arc};
 use ahash::{AHashMap, AHashSet};
 use de_core::component::{Component, ComponentId, ComponentState, ComponentTrigger};
 use de_exec::ExecOrder;
+use exchange_interactions::{ExchangeOrder, orders::LimitOrder};
 use futures_util::{StreamExt as _, stream::FuturesUnordered};
 use miette::Result;
 use tracing::info;
+use trading_data_core::Asset;
 use uuid::Uuid;
-use v_exchanges::{ExchangeOrder, orders::LimitOrder};
-use v_utils::{arch::Keyed, trades::Asset};
+use v_utils::arch::Keyed;
 
 use crate::algo::ConceptualLimit;
 

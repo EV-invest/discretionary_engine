@@ -85,9 +85,10 @@ use tokio::{
 	task::JoinSet,
 };
 use tracing::{debug, instrument, warn};
+use trading_data_core::Ohlc;
 use url::Url;
 use uuid::Uuid;
-use v_utils::{Percent, trades::Ohlc};
+use v_utils::Percent;
 
 use super::{
 	hub::{ExchangeToHub, HubToExchange},
@@ -163,8 +164,8 @@ pub async fn binance_runtime(
 	let mut last_reported_fill_key = Uuid::default();
 	let currently_deployed: Arc<RwLock<Vec<BinanceOrder>>> = Arc::new(RwLock::new(Vec::default()));
 
+	use exchange_interactions::ExchangeName;
 	use secrecy::ExposeSecret;
-	use v_exchanges::ExchangeName;
 
 	let config = live_settings.config().expect("Failed to load config");
 	let binance_config = config.get_exchange(ExchangeName::Binance).expect("Binance exchange config not found");

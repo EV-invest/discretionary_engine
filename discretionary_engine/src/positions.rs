@@ -5,8 +5,8 @@ use color_eyre::eyre::Result;
 use serde::{Deserialize, Serialize};
 use tokio::{select, sync::mpsc, task::JoinSet};
 use tracing::{Span, debug, field::Empty, info, instrument};
+use trading_data_core::Side;
 use uuid::Uuid;
-use v_utils::trades::Side;
 
 use crate::{
 	exchange_apis::{

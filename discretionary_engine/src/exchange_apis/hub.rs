@@ -191,7 +191,7 @@ fn hub_process_orders(conceptual_orders: Vec<ConceptualOrder<PositionOrderId>>) 
 mod tests {
 	#![allow(unused_imports)] // RA being dumb
 	use order_types::{ConceptualMarket, ConceptualStopMarket};
-	use v_utils::trades::Side;
+	use trading_data_core::Side;
 
 	use super::*;
 	use crate::exchange_apis::Symbol;

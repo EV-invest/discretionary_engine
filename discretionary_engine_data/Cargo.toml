@@ -9,10 +9,11 @@ license = "MIT OR Apache-2.0"
 ahash = { workspace = true, features = ["serde"] }
 arc-swap.workspace = true
 de_core.workspace = true
+exchange_interactions.workspace = true
 futures-util.workspace = true
 tokio = { workspace = true, features = ["sync", "rt"] }
 tracing.workspace = true
-v_exchanges.workspace = true
+trading_data_core.workspace = true
 v_utils.workspace = true
 
 [lints]
